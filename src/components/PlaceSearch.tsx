@@ -132,7 +132,7 @@ export default function PlaceSearch() {
       )}
       
       {results && (
-        <div className="grid gap-5 md:grid-cols-2">
+        <div className="flex flex-col gap-5"> {/* Changed from grid to flex column */}
           {results.map((res) => (
             <PlaceCard key={res.place_id} result={res} />
           ))}
