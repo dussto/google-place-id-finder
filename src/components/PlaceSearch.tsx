@@ -4,7 +4,7 @@ import { findPlaces, PlaceResult } from "@/lib/googlePlaces";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Image, MapPin, AlertCircle } from "lucide-react";
+import { MapPin, AlertCircle } from "lucide-react";
 
 const PLACEHOLDER =
   "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
@@ -36,7 +36,6 @@ const PlaceCard: React.FC<{ result: PlaceResult }> = ({ result }) => (
 );
 
 export default function PlaceSearch() {
-  const [apiKey, setApiKey] = useState("");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,20 +43,20 @@ export default function PlaceSearch() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!apiKey || !query) {
+    if (!query) {
       toast({
-        title: "API Key and query required",
-        description: "Enter both your Google Places API key and a place query.",
+        title: "Query required",
+        description: "Please enter a place or business to search for.",
       });
       return;
     }
-    
+
     setLoading(true);
     setResults(null);
     setError(null);
-    
+
     try {
-      const res = await findPlaces({ apiKey, query });
+      const res = await findPlaces({ query });
       setResults(res);
       if (res.length === 0)
         toast({
@@ -89,14 +88,7 @@ export default function PlaceSearch() {
         className="flex flex-col md:flex-row gap-3 mb-8"
         onSubmit={handleSearch}
       >
-        <Input
-          type="text"
-          required
-          placeholder="Your Google Places API Key"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          className="md:max-w-xs"
-        />
+        {/* API key field removed */}
         <Input
           type="text"
           required
@@ -113,7 +105,7 @@ export default function PlaceSearch() {
           {loading ? "Searching..." : "Find Place ID"}
         </button>
       </form>
-      
+
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -123,17 +115,16 @@ export default function PlaceSearch() {
             <p className="mt-2 text-xs text-gray-700">
               This may be due to API key restrictions or network issues. Make sure:
               <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Your API key is valid and has Places API enabled</li>
-                <li>You have billing enabled for your Google Cloud project</li>
                 <li>Your internet connection is stable</li>
+                <li>The backend API is correctly configured</li>
               </ul>
             </p>
           </div>
         </div>
       )}
-      
+
       {results && (
-        <div className="flex flex-col gap-5"> {/* Changed from grid to flex column */}
+        <div className="flex flex-col gap-5">
           {results.map((res) => (
             <PlaceCard key={res.place_id} result={res} />
           ))}
