@@ -9,19 +9,20 @@ import { Image, MapPin, AlertCircle } from "lucide-react";
 const PLACEHOLDER =
   "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
 
+// Lay out image left (30%), info right (70%) in each PlaceCard
 const PlaceCard: React.FC<{ result: PlaceResult }> = ({ result }) => (
-  <Card className="flex flex-col items-center p-4 shadow-lg group transition-all hover:scale-105 hover:shadow-xl h-full">
-    <div className="w-full aspect-video mb-3 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center">
+  <Card className="flex flex-row items-stretch p-0 shadow-lg group transition-all hover:scale-105 hover:shadow-xl h-full overflow-hidden">
+    <div className="w-[30%] min-w-0 bg-gray-100 flex items-center justify-center">
       <img
         src={result.photo_url || PLACEHOLDER}
         alt={result.name}
-        className="object-cover w-full h-full"
+        className="object-cover w-full h-full aspect-video"
         onError={(e) => {
           (e.target as HTMLImageElement).src = PLACEHOLDER;
         }}
       />
     </div>
-    <div className="w-full flex-1 flex flex-col gap-1">
+    <div className="w-[70%] flex flex-col gap-1 p-4">
       <div className="font-semibold text-lg flex items-center gap-2">
         <MapPin className="w-4 h-4 text-blue-500" />
         {result.name}
