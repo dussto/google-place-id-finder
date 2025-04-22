@@ -4,7 +4,7 @@ import { findPlaces, PlaceResult } from "@/lib/googlePlaces";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Image, MapPin } from "lucide-react";
+import { Image, MapPin, AlertCircle } from "lucide-react";
 
 const PLACEHOLDER =
   "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
@@ -39,6 +39,7 @@ export default function PlaceSearch() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +50,11 @@ export default function PlaceSearch() {
       });
       return;
     }
+    
     setLoading(true);
     setResults(null);
+    setError(null);
+    
     try {
       const res = await findPlaces({ apiKey, query });
       setResults(res);
@@ -60,9 +64,12 @@ export default function PlaceSearch() {
           description: "Try refining your search.",
         });
     } catch (err: any) {
+      console.error("Search error:", err);
+      setError(err?.message || "Failed to fetch results");
       toast({
         title: "Error",
         description: err?.message || "Failed to fetch results",
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -105,6 +112,25 @@ export default function PlaceSearch() {
           {loading ? "Searching..." : "Find Place ID"}
         </button>
       </form>
+      
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium text-red-700">Error occurred</p>
+            <p className="text-sm text-red-600">{error}</p>
+            <p className="mt-2 text-xs text-gray-700">
+              This may be due to API key restrictions or network issues. Make sure:
+              <ul className="list-disc pl-5 mt-1 space-y-1">
+                <li>Your API key is valid and has Places API enabled</li>
+                <li>You have billing enabled for your Google Cloud project</li>
+                <li>Your internet connection is stable</li>
+              </ul>
+            </p>
+          </div>
+        </div>
+      )}
+      
       {results && (
         <div className="grid gap-5 md:grid-cols-2">
           {results.map((res) => (
