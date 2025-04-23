@@ -37,7 +37,7 @@ serve(async (req) => {
       });
     }
 
-    // 2. For each result, build the info (including photo_url via new HTTP endpoint)
+    // 2. For each result, build the info (including photo_url and review_count)
     const out = await Promise.all(
       data.results.map(async (r: any) => {
         let photo_url: string | undefined;
@@ -51,6 +51,7 @@ serve(async (req) => {
           formatted_address: r.formatted_address,
           place_id: r.place_id,
           photo_url,
+          review_count: r.user_ratings_total || 0,
         };
       })
     );
@@ -66,3 +67,4 @@ serve(async (req) => {
     });
   }
 });
+

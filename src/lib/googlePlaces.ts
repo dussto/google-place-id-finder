@@ -4,6 +4,7 @@ export interface PlaceResult {
   place_id: string;
   photo_url?: string;
   website?: string;
+  review_count?: number;
 }
 
 export interface EnhancedPlaceResult extends PlaceResult {

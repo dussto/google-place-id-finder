@@ -1,10 +1,9 @@
-
 import React, { useState } from "react";
 import { findPlaces, PlaceResult, EnhancedPlaceResult } from "@/lib/googlePlaces";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MapPin, AlertCircle, Globe, Copy } from "lucide-react";
+import { MapPin, AlertCircle, Globe, Copy, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
@@ -34,6 +33,10 @@ const PlaceCard: React.FC<{ result: EnhancedPlaceResult }> = ({ result }) => {
         <div className="font-semibold text-xl flex items-center gap-2 text-[#0F172A]">
           <MapPin className="w-5 h-5 text-[#0EA5E9]" />
           {result.name}
+        </div>
+        <div className="flex items-center gap-2 text-[#475569]">
+          <MessageSquare className="w-4 h-4" />
+          {result.review_count ?? 0} reviews
         </div>
         <div className="text-[#475569]">{result.formatted_address}</div>
         {result.website && (
