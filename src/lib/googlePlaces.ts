@@ -1,9 +1,9 @@
-
 export interface PlaceResult {
   name: string;
   formatted_address: string;
   place_id: string;
   photo_url?: string;
+  website?: string;
 }
 
 /**

@@ -4,35 +4,79 @@ import { findPlaces, PlaceResult } from "@/lib/googlePlaces";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MapPin, AlertCircle } from "lucide-react";
+import { MapPin, AlertCircle, Globe, Copy } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PLACEHOLDER =
   "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
 
-// Lay out image left (30%), info right (70%) in each PlaceCard
-const PlaceCard: React.FC<{ result: PlaceResult }> = ({ result }) => (
-  <Card className="flex flex-row items-stretch p-0 shadow-lg group transition-all hover:scale-105 hover:shadow-xl h-full overflow-hidden">
-    <div className="w-[30%] min-w-0 bg-gray-100 flex items-center justify-center">
-      <img
-        src={result.photo_url || PLACEHOLDER}
-        alt={result.name}
-        className="object-cover w-full h-full aspect-video"
-        onError={(e) => {
-          (e.target as HTMLImageElement).src = PLACEHOLDER;
-        }}
-      />
-    </div>
-    <div className="w-[70%] flex flex-col gap-1 p-4">
-      <div className="font-semibold text-lg flex items-center gap-2">
-        <MapPin className="w-4 h-4 text-blue-500" />
-        {result.name}
+const PlaceCard: React.FC<{ result: PlaceResult }> = ({ result }) => {
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    toast({
+      title: "Copied to clipboard",
+      description: "Place ID has been copied to your clipboard",
+    });
+  };
+
+  return (
+    <Card className="flex flex-row items-stretch p-0 border border-gray-200">
+      <div className="w-[30%] min-w-0 bg-gray-100 flex items-center justify-center">
+        <img
+          src={result.photo_url || PLACEHOLDER}
+          alt={result.name}
+          className="object-cover w-full h-full aspect-video"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = PLACEHOLDER;
+          }}
+        />
       </div>
-      <div className="text-gray-600 text-sm">{result.formatted_address}</div>
-      <div className="text-xs mt-2 break-all text-purple-800 font-mono">
-        <span className="font-bold">Place ID:</span> {result.place_id}
+      <div className="w-[70%] flex flex-col gap-3 p-6">
+        <div className="font-semibold text-xl flex items-center gap-2 text-gray-900">
+          <MapPin className="w-5 h-5 text-primary" />
+          {result.name}
+        </div>
+        <div className="text-gray-600">{result.formatted_address}</div>
+        {result.website && (
+          <div className="flex items-center gap-2 text-primary">
+            <Globe className="w-4 h-4" />
+            <a
+              href={result.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline text-sm"
+            >
+              {result.website}
+            </a>
+          </div>
+        )}
+        <div className="flex items-center gap-2 mt-2 bg-gray-50 p-3 rounded-lg">
+          <div className="flex-1">
+            <div className="text-xs text-gray-500 font-medium mb-1">Place ID</div>
+            <div className="font-mono text-sm text-gray-900">{result.place_id}</div>
+          </div>
+          <button
+            onClick={() => copyToClipboard(result.place_id)}
+            className="p-2 hover:bg-gray-100 rounded-md transition-colors"
+            title="Copy Place ID"
+          >
+            <Copy className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
       </div>
-    </div>
-  </Card>
+    </Card>
+  );
+};
+
+const SearchHeader: React.FC = () => (
+  <div className="mb-8 text-center">
+    <h1 className="text-3xl font-semibold mb-2 text-gray-900">
+      Google Place ID Finder
+    </h1>
+    <p className="text-gray-600">
+      Enter a business or place name and get its Place ID — with photo and info!
+    </p>
+  </div>
 );
 
 export default function PlaceSearch() {
@@ -77,18 +121,9 @@ export default function PlaceSearch() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-16 px-4">
-      <h1 className="text-3xl font-extrabold mb-2 text-gray-900 text-center">
-        Google Place ID Finder
-      </h1>
-      <p className="mb-8 text-center text-gray-600">
-        Enter a business or place name and get its Place ID — with photo and info!
-      </p>
-      <form
-        className="flex flex-col md:flex-row gap-3 mb-8"
-        onSubmit={handleSearch}
-      >
-        {/* API key field removed */}
+    <div className="max-w-3xl mx-auto px-4 py-12">
+      <SearchHeader />
+      <form className="flex flex-col md:flex-row gap-3 mb-8" onSubmit={handleSearch}>
         <Input
           type="text"
           required
@@ -100,31 +135,28 @@ export default function PlaceSearch() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold px-6 py-2 rounded-lg shadow-md disabled:opacity-60"
+          className={cn(
+            "px-6 py-2.5 font-medium rounded-lg shadow-sm",
+            "bg-primary text-white hover:bg-primary/90 transition-colors",
+            "disabled:opacity-60 disabled:cursor-not-allowed"
+          )}
         >
           {loading ? "Searching..." : "Find Place ID"}
         </button>
       </form>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+        <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-700">Error occurred</p>
             <p className="text-sm text-red-600">{error}</p>
-            <p className="mt-2 text-xs text-gray-700">
-              This may be due to API key restrictions or network issues. Make sure:
-              <ul className="list-disc pl-5 mt-1 space-y-1">
-                <li>Your internet connection is stable</li>
-                <li>The backend API is correctly configured</li>
-              </ul>
-            </p>
           </div>
         </div>
       )}
 
       {results && (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-4">
           {results.map((res) => (
             <PlaceCard key={res.place_id} result={res} />
           ))}
