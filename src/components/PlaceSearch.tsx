@@ -3,7 +3,7 @@ import { findPlaces, PlaceResult, EnhancedPlaceResult } from "@/lib/googlePlaces
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { MapPin, AlertCircle, Globe, Copy, MessageSquare } from "lucide-react";
+import { MapPin, AlertCircle, Globe, Copy, MessageSquare, Link } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
@@ -16,6 +16,9 @@ const PlaceCard: React.FC<{ result: EnhancedPlaceResult }> = ({ result }) => {
       description: "Place ID has been copied to your clipboard",
     });
   };
+
+  const getGoogleMapsUrl = (placeId: string) => `https://www.google.com/maps/place/?q=place_id:${placeId}`;
+  const getGoogleReviewsUrl = (placeId: string) => `https://search.google.com/local/reviews?placeid=${placeId}`;
 
   return (
     <Card className="flex flex-row items-stretch p-0 border border-gray-100">
@@ -33,11 +36,24 @@ const PlaceCard: React.FC<{ result: EnhancedPlaceResult }> = ({ result }) => {
         <div className="font-semibold text-xl flex items-center gap-2 text-[#0F172A]">
           <MapPin className="w-5 h-5 text-[#0EA5E9]" />
           {result.name}
+          <a
+            href={getGoogleMapsUrl(result.place_id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center hover:text-[#0EA5E9]"
+          >
+            <Link className="w-4 h-4" />
+          </a>
         </div>
-        <div className="flex items-center gap-2 text-[#475569]">
+        <a
+          href={getGoogleReviewsUrl(result.place_id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-[#475569] hover:text-[#0EA5E9]"
+        >
           <MessageSquare className="w-4 h-4" />
           {result.review_count ?? 0} reviews
-        </div>
+        </a>
         <div className="text-[#475569]">{result.formatted_address}</div>
         {result.website && (
           <div className="flex items-center gap-2 text-[#0EA5E9]">
