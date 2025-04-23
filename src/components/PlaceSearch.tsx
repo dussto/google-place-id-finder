@@ -1,5 +1,6 @@
+
 import React, { useState } from "react";
-import { findPlaces, PlaceResult } from "@/lib/googlePlaces";
+import { findPlaces, PlaceResult, EnhancedPlaceResult } from "@/lib/googlePlaces";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
@@ -97,7 +98,7 @@ const SearchHeader: React.FC = () => (
 
 const PlaceSearch: React.FC = () => {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<PlaceResult[] | null>(null);
+  const [results, setResults] = useState<EnhancedPlaceResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

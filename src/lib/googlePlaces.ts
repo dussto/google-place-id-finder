@@ -1,3 +1,4 @@
+
 export interface PlaceResult {
   name: string;
   formatted_address: string;
@@ -6,7 +7,7 @@ export interface PlaceResult {
   website?: string;
 }
 
-interface EnhancedPlaceResult extends PlaceResult {
+export interface EnhancedPlaceResult extends PlaceResult {
   vendorInfo?: {
     name: string;
     logo: string;
