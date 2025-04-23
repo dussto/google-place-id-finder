@@ -1,4 +1,3 @@
-
 export interface PlaceResult {
   name: string;
   formatted_address: string;
@@ -19,8 +18,29 @@ export interface EnhancedPlaceResult extends PlaceResult {
  * Attempts to find a website for a place if not provided by Google Places
  */
 async function findWebsite(placeName: string, address: string): Promise<string | null> {
-  // This would ideally use a service like Bing Web Search API or similar
-  // For now, return null as we'd need an additional API integration
+  try {
+    // Use Bing Web Search API to find the website
+    // This is a simplified example - in production you'd want to use a proper search API
+    const searchQuery = `${placeName} ${address} official website`;
+    const searchUrl = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(searchQuery)}`;
+    
+    const res = await fetch(searchUrl, {
+      headers: {
+        'Ocp-Apim-Subscription-Key': 'YOUR_BING_API_KEY' // This would need to be configured
+      }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      // Get the first result that looks like a business website
+      const firstResult = data.webPages?.value?.[0];
+      if (firstResult?.url && !firstResult.url.includes('facebook.com') && !firstResult.url.includes('yelp.com')) {
+        return firstResult.url;
+      }
+    }
+  } catch (error) {
+    console.error('Error finding website:', error);
+  }
   return null;
 }
 
@@ -28,8 +48,50 @@ async function findWebsite(placeName: string, address: string): Promise<string |
  * Identifies the website vendor/platform (e.g., Wix, Shopify, WordPress)
  */
 async function identifyWebsiteVendor(websiteUrl: string): Promise<{ name: string; logo: string; url: string } | null> {
-  // This would analyze the website to detect the platform
-  // For demo purposes, return null as we'd need additional integrations
+  try {
+    const res = await fetch(websiteUrl);
+    const html = await res.text();
+
+    // Check for common website platform signatures
+    const platforms = [
+      {
+        name: 'Wix',
+        signatures: ['wix.com', '_wixCss'],
+        logo: 'https://static.wixstatic.com/media/e0678ef25486466ba65ef6ad47b559e1.png',
+        url: 'https://www.wix.com'
+      },
+      {
+        name: 'Shopify',
+        signatures: ['cdn.shopify.com', 'Shopify.theme'],
+        logo: 'https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-primary-logo-456baa801ee66a0a435671082365958316831c9960c480451dd0330bcdae304f.svg',
+        url: 'https://www.shopify.com'
+      },
+      {
+        name: 'WordPress',
+        signatures: ['wp-content', 'wp-includes'],
+        logo: 'https://s.w.org/style/images/about/WordPress-logotype-standard.png',
+        url: 'https://wordpress.org'
+      },
+      {
+        name: 'Squarespace',
+        signatures: ['squarespace.com', 'Static.Squarespace'],
+        logo: 'https://static1.squarespace.com/static/ta/5134cbefe4b0c6fb04df8065/10515/assets/logos/squarespace-logo-horizontal-black.svg',
+        url: 'https://www.squarespace.com'
+      }
+    ];
+
+    for (const platform of platforms) {
+      if (platform.signatures.some(sig => html.includes(sig))) {
+        return {
+          name: platform.name,
+          logo: platform.logo,
+          url: platform.url
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error identifying website vendor:', error);
+  }
   return null;
 }
 
