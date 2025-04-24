@@ -3,7 +3,6 @@ import React from "react";
 import { EnhancedPlaceResult } from "@/lib/googlePlaces";
 import { PlaceCard } from "./PlaceCard";
 import { SearchPagination } from "../SearchPagination";
-import { AdPlaceholder } from "../AdPlaceholder";
 
 interface SearchResultsProps {
   allResults: EnhancedPlaceResult[];
@@ -25,13 +24,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {paginatedResults.map((result, index) => (
-        <React.Fragment key={result.place_id}>
-          <PlaceCard result={result} />
-          {(index + 1) % 5 === 0 && index !== paginatedResults.length - 1 && (
-            <AdPlaceholder className="my-2" />
-          )}
-        </React.Fragment>
+      {paginatedResults.map((result) => (
+        <PlaceCard key={result.place_id} result={result} />
       ))}
       
       <SearchPagination

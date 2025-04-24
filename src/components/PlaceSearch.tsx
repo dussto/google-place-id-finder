@@ -6,7 +6,6 @@ import { SearchHeader } from "./place-search/SearchHeader";
 import { SearchForm } from "./place-search/SearchForm";
 import { SearchError } from "./place-search/SearchError";
 import { SearchResults } from "./place-search/SearchResults";
-import { AdPlaceholder } from "./AdPlaceholder";
 
 const RESULTS_PER_PAGE = 10;
 
@@ -57,8 +56,6 @@ const PlaceSearch: React.FC = () => {
     <div className="max-w-3xl mx-auto px-4 py-12">
       <SearchHeader />
       
-      <AdPlaceholder className="mb-8" />
-
       <SearchForm
         query={query}
         onQueryChange={setQuery}
@@ -76,8 +73,6 @@ const PlaceSearch: React.FC = () => {
           resultsPerPage={RESULTS_PER_PAGE}
         />
       )}
-      
-      <AdPlaceholder className="mt-8" />
     </div>
   );
 };
