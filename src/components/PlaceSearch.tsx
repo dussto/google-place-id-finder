@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { MapPin, AlertCircle, Globe, Copy, MessageSquare, Link } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchPagination } from "./SearchPagination";
+import { AdPlaceholder } from "./AdPlaceholder";
 
 const PLACEHOLDER = "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
 
@@ -115,9 +117,12 @@ const SearchHeader: React.FC = () => (
   </div>
 );
 
+const RESULTS_PER_PAGE = 10;
+
 const PlaceSearch: React.FC = () => {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<EnhancedPlaceResult[] | null>(null);
+  const [allResults, setAllResults] = useState<EnhancedPlaceResult[] | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -132,12 +137,13 @@ const PlaceSearch: React.FC = () => {
     }
 
     setLoading(true);
-    setResults(null);
+    setAllResults(null);
     setError(null);
+    setCurrentPage(1);
 
     try {
       const res = await findPlaces({ query });
-      setResults(res);
+      setAllResults(res);
       if (res.length === 0)
         toast({
           title: "No results found",
@@ -156,9 +162,18 @@ const PlaceSearch: React.FC = () => {
     }
   };
 
+  const paginatedResults = allResults?.slice(
+    (currentPage - 1) * RESULTS_PER_PAGE,
+    currentPage * RESULTS_PER_PAGE
+  );
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-12">
       <SearchHeader />
+      
+      {/* Top Ad Space */}
+      <AdPlaceholder className="mb-8" />
+
       <form className="flex flex-col md:flex-row gap-3 mb-8" onSubmit={handleSearch}>
         <Input
           type="text"
@@ -191,13 +206,29 @@ const PlaceSearch: React.FC = () => {
         </div>
       )}
 
-      {results && (
+      {allResults && (
         <div className="flex flex-col gap-4">
-          {results.map((result) => (
-            <PlaceCard key={result.place_id} result={result} />
+          {paginatedResults?.map((result, index) => (
+            <React.Fragment key={result.place_id}>
+              <PlaceCard result={result} />
+              {/* Insert ad after every 5 results */}
+              {(index + 1) % 5 === 0 && index !== paginatedResults.length - 1 && (
+                <AdPlaceholder className="my-2" />
+              )}
+            </React.Fragment>
           ))}
+          
+          <SearchPagination
+            currentPage={currentPage}
+            totalResults={allResults.length}
+            resultsPerPage={RESULTS_PER_PAGE}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
+      
+      {/* Bottom Ad Space */}
+      <AdPlaceholder className="mt-8" />
     </div>
   );
 };
