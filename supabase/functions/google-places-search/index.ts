@@ -1,6 +1,7 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { RateLimiter } from "https://deno.land/x/rate_limiter@0.1.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,11 +10,69 @@ const corsHeaders = {
 
 const GOOGLE_PLACES_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY") ?? "";
 
+// Create rate limiter: 10 requests per minute
+const limiter = new RateLimiter({
+  requests: 10,
+  interval: 60000, // 60 seconds (1 minute)
+});
+
+// Simple bot detection function
+function isBotRequest(req: Request): boolean {
+  const userAgent = req.headers.get("user-agent") || "";
+  
+  // Check for common bot signatures in user agent
+  const botPatterns = [
+    /bot/i, /crawler/i, /spider/i, /headless/i, /puppeteer/i, 
+    /selenium/i, /chrome-lighthouse/i, /phantom/i
+  ];
+  
+  if (botPatterns.some(pattern => pattern.test(userAgent))) {
+    return true;
+  }
+  
+  // Check for missing or suspicious headers commonly absent in bots
+  const referer = req.headers.get("referer");
+  const acceptLanguage = req.headers.get("accept-language");
+  
+  if (!referer && !acceptLanguage) {
+    return true;
+  }
+  
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  
   try {
+    // Get client IP for rate limiting
+    const forwardedFor = req.headers.get("x-forwarded-for") || "unknown";
+    const clientIP = forwardedFor.split(",")[0].trim();
+    
+    // Check if request is from a bot
+    if (isBotRequest(req)) {
+      console.warn("Bot request detected and blocked:", clientIP);
+      return new Response(JSON.stringify({ error: "Access denied" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Apply rate limiting
+    if (!limiter.try(clientIP)) {
+      console.warn("Rate limit exceeded for IP:", clientIP);
+      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+        status: 429, // Too Many Requests
+        headers: { 
+          ...corsHeaders, 
+          "Content-Type": "application/json",
+          "Retry-After": "60" // Suggest client to retry after 60 seconds
+        },
+      });
+    }
+    
     const { query } = await req.json();
 
     if (!GOOGLE_PLACES_API_KEY) {
@@ -67,4 +126,3 @@ serve(async (req) => {
     });
   }
 });
-
