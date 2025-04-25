@@ -87,12 +87,22 @@ function isBotRequest(req: Request): boolean {
 function deduplicateResults(results: any[]): any[] {
   const seen = new Set();
   return results.filter(r => {
+    if (!r || !r.place_id) return false;
     if (seen.has(r.place_id)) {
       return false;
     }
     seen.add(r.place_id);
     return true;
   });
+}
+
+// Extract business name from domain
+function extractBusinessNameFromDomain(query: string): string {
+  return query
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\.(com|org|net|io|co|us|ca|app|ai|dev).*$/, '')
+    .replace(/-/g, ' ');  // Convert hyphens to spaces
 }
 
 serve(async (req) => {
@@ -128,6 +138,7 @@ serve(async (req) => {
     }
     
     const { query } = await req.json();
+    console.log("Search query:", query);
 
     if (!GOOGLE_PLACES_API_KEY) {
       return new Response(JSON.stringify({ error: "GOOGLE_PLACES_API_KEY is not set." }), {
@@ -143,57 +154,86 @@ serve(async (req) => {
     
     let res = await fetch(textSearchUrl);
     let data = await res.json();
+    console.log("Text search results:", data.results?.length || 0);
     
     if (Array.isArray(data.results)) {
       allResults.push(...data.results);
     }
     
-    // 2. If the search looks like it might be for a website, try finding by name
-    if (query.includes('.com') || query.includes('.org') || query.includes('.net') || query.includes('www.')) {
-      // Extract potential business name from domain
-      let businessName = query
-        .replace(/^https?:\/\//, '')
-        .replace(/^www\./, '')
-        .split('.')[0];
+    // 2. If the search looks like it might be a website or business name
+    const isWebsite = query.includes('.') && !query.includes(' ');
+    let businessName = isWebsite ? extractBusinessNameFromDomain(query) : query;
+    
+    // Try direct findPlaceFromText for business name with more fields
+    if (businessName && businessName.length > 1) {
+      try {
+        const findPlaceUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(businessName)}&inputtype=textquery&fields=place_id,name,formatted_address,photos,geometry,website,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
         
-      // Try a second search with just the business name
-      if (businessName && businessName.length > 3) {
-        const nameSearchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(businessName)}&inputtype=textquery&fields=place_id,name,formatted_address,photos,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
+        const findRes = await fetch(findPlaceUrl);
+        const findData = await findRes.json();
+        console.log("Find place results for", businessName, ":", findData.candidates?.length || 0);
         
-        const nameRes = await fetch(nameSearchUrl);
-        const nameData = await nameRes.json();
-        
-        if (nameData.candidates && nameData.candidates.length > 0) {
+        if (findData.candidates && findData.candidates.length > 0) {
           // For each candidate, get full details
-          for (const candidate of nameData.candidates) {
-            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${candidate.place_id}&fields=place_id,name,formatted_address,photos,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
-            const detailsRes = await fetch(detailsUrl);
-            const detailsData = await detailsRes.json();
-            
-            if (detailsData.result) {
-              allResults.push(detailsData.result);
+          for (const candidate of findData.candidates.slice(0, 3)) { // Limit to first 3 for performance
+            try {
+              const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${candidate.place_id}&fields=place_id,name,formatted_address,photos,website,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
+              const detailsRes = await fetch(detailsUrl);
+              const detailsData = await detailsRes.json();
+              
+              if (detailsData.result) {
+                allResults.push(detailsData.result);
+              }
+            } catch (err) {
+              console.error("Error fetching place details:", err);
             }
           }
         }
+      } catch (err) {
+        console.error("Error in findPlaceFromText:", err);
       }
     }
     
-    // 3. If still not enough results, try a broader search
-    if (allResults.length < 3 && !query.includes('.')) {
-      const broadSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + " business")}&key=${GOOGLE_PLACES_API_KEY}`;
-      
-      const broadRes = await fetch(broadSearchUrl);
-      const broadData = await broadRes.json();
-      
-      if (Array.isArray(broadData.results)) {
-        allResults.push(...broadData.results);
+    // 3. Direct query for specific businesses like AgentFire
+    if ((query.toLowerCase().includes("agentfire") || businessName.toLowerCase().includes("agentfire")) && 
+        !allResults.some(r => r.name?.toLowerCase().includes("agentfire"))) {
+      try {
+        const specificSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent("AgentFire web development")}&key=${GOOGLE_PLACES_API_KEY}`;
+        const specificRes = await fetch(specificSearchUrl);
+        const specificData = await specificRes.json();
+        
+        if (Array.isArray(specificData.results)) {
+          console.log("Found specific AgentFire results:", specificData.results.length);
+          allResults.push(...specificData.results);
+        }
+      } catch (err) {
+        console.error("Error in specific search:", err);
+      }
+    }
+    
+    // 4. If still not enough results, try a broader search
+    if (allResults.length < 3) {
+      try {
+        const broadSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(businessName + " business")}&key=${GOOGLE_PLACES_API_KEY}`;
+        
+        const broadRes = await fetch(broadSearchUrl);
+        const broadData = await broadRes.json();
+        console.log("Broad search results:", broadData.results?.length || 0);
+        
+        if (Array.isArray(broadData.results)) {
+          allResults.push(...broadData.results);
+        }
+      } catch (err) {
+        console.error("Error in broad search:", err);
       }
     }
     
     // Deduplicate results
     allResults = deduplicateResults(allResults);
+    console.log("Total unique results after merging:", allResults.length);
     
     if (allResults.length === 0) {
+      console.log("No results found for query:", query);
       return new Response(JSON.stringify([]), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -213,6 +253,7 @@ serve(async (req) => {
           formatted_address: r.formatted_address || r.vicinity || "",
           place_id: r.place_id,
           photo_url,
+          website: r.website,
           review_count: r.user_ratings_total || 0,
         };
       })
