@@ -1,7 +1,6 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RateLimiter } from "https://deno.land/x/rate_limiter@0.1.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,11 +9,54 @@ const corsHeaders = {
 
 const GOOGLE_PLACES_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY") ?? "";
 
+// Simple in-memory rate limiter
+class SimpleRateLimiter {
+  private requests: Map<string, number[]> = new Map();
+  private readonly limit: number;
+  private readonly windowMs: number;
+
+  constructor(limit: number, windowMs: number) {
+    this.limit = limit;
+    this.windowMs = windowMs;
+    
+    // Clean up old entries every minute
+    setInterval(() => this.cleanup(), 60000);
+  }
+
+  try(key: string): boolean {
+    const now = Date.now();
+    const timestamps = this.requests.get(key) || [];
+    
+    // Filter out timestamps outside the current window
+    const recentTimestamps = timestamps.filter(time => time > now - this.windowMs);
+    
+    // Check if we're at the limit
+    if (recentTimestamps.length >= this.limit) {
+      return false;
+    }
+    
+    // Add current timestamp and update
+    recentTimestamps.push(now);
+    this.requests.set(key, recentTimestamps);
+    
+    return true;
+  }
+  
+  cleanup() {
+    const now = Date.now();
+    for (const [key, timestamps] of this.requests.entries()) {
+      const recent = timestamps.filter(time => time > now - this.windowMs);
+      if (recent.length === 0) {
+        this.requests.delete(key);
+      } else {
+        this.requests.set(key, recent);
+      }
+    }
+  }
+}
+
 // Create rate limiter: 10 requests per minute
-const limiter = new RateLimiter({
-  requests: 10,
-  interval: 60000, // 60 seconds (1 minute)
-});
+const limiter = new SimpleRateLimiter(10, 60000);
 
 // Simple bot detection function
 function isBotRequest(req: Request): boolean {
