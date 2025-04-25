@@ -9,264 +9,145 @@ const corsHeaders = {
 
 const GOOGLE_PLACES_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY") ?? "";
 
-// Simple in-memory rate limiter
-class SimpleRateLimiter {
-  private requests: Map<string, number[]> = new Map();
-  private readonly limit: number;
-  private readonly windowMs: number;
-
-  constructor(limit: number, windowMs: number) {
-    this.limit = limit;
-    this.windowMs = windowMs;
-    
-    // Clean up old entries every minute
-    setInterval(() => this.cleanup(), 60000);
-  }
-
-  try(key: string): boolean {
-    const now = Date.now();
-    const timestamps = this.requests.get(key) || [];
-    
-    // Filter out timestamps outside the current window
-    const recentTimestamps = timestamps.filter(time => time > now - this.windowMs);
-    
-    // Check if we're at the limit
-    if (recentTimestamps.length >= this.limit) {
-      return false;
-    }
-    
-    // Add current timestamp and update
-    recentTimestamps.push(now);
-    this.requests.set(key, recentTimestamps);
-    
-    return true;
+// Enhanced search term processing
+function processSearchTerm(query: string): string[] {
+  const searchTerms = [];
+  
+  // Original query
+  searchTerms.push(query);
+  
+  // Remove common TLDs and clean up
+  const cleanQuery = query
+    .toLowerCase()
+    .replace(/\.(com|org|net|io|co|us|ca|app|ai|dev)$/i, '')
+    .replace(/[^\w\s]/g, ' ')
+    .trim();
+  if (cleanQuery !== query.toLowerCase()) {
+    searchTerms.push(cleanQuery);
   }
   
-  cleanup() {
-    const now = Date.now();
-    for (const [key, timestamps] of this.requests.entries()) {
-      const recent = timestamps.filter(time => time > now - this.windowMs);
-      if (recent.length === 0) {
-        this.requests.delete(key);
-      } else {
-        this.requests.set(key, recent);
+  // Add "company" or "business" for better context
+  searchTerms.push(`${cleanQuery} company`);
+  searchTerms.push(`${cleanQuery} business`);
+  
+  return [...new Set(searchTerms)]; // Remove duplicates
+}
+
+async function searchPlaces(searchTerm: string, apiKey: string): Promise<any[]> {
+  const results = [];
+  
+  try {
+    // 1. Try text search first
+    const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchTerm)}&key=${apiKey}`;
+    const textRes = await fetch(textSearchUrl);
+    const textData = await textRes.json();
+    if (textData.results) {
+      results.push(...textData.results);
+    }
+    
+    // 2. Try findPlaceFromText for more specific matches
+    const findPlaceUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(searchTerm)}&inputtype=textquery&fields=place_id,name,formatted_address,photos,website,user_ratings_total,geometry&key=${apiKey}`;
+    const findRes = await fetch(findPlaceUrl);
+    const findData = await findRes.json();
+    
+    if (findData.candidates?.length > 0) {
+      // Get full details for each candidate
+      for (const candidate of findData.candidates) {
+        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${candidate.place_id}&fields=place_id,name,formatted_address,photos,website,user_ratings_total&key=${apiKey}`;
+        const detailsRes = await fetch(detailsUrl);
+        const detailsData = await detailsRes.json();
+        if (detailsData.result) {
+          results.push(detailsData.result);
+        }
       }
     }
-  }
-}
-
-// Create rate limiter: 10 requests per minute
-const limiter = new SimpleRateLimiter(10, 60000);
-
-// Simple bot detection function
-function isBotRequest(req: Request): boolean {
-  const userAgent = req.headers.get("user-agent") || "";
-  
-  // Check for common bot signatures in user agent
-  const botPatterns = [
-    /bot/i, /crawler/i, /spider/i, /headless/i, /puppeteer/i, 
-    /selenium/i, /chrome-lighthouse/i, /phantom/i
-  ];
-  
-  if (botPatterns.some(pattern => pattern.test(userAgent))) {
-    return true;
-  }
-  
-  // Check for missing or suspicious headers commonly absent in bots
-  const referer = req.headers.get("referer");
-  const acceptLanguage = req.headers.get("accept-language");
-  
-  if (!referer && !acceptLanguage) {
-    return true;
-  }
-  
-  return false;
-}
-
-// Function to deduplicate results based on place_id
-function deduplicateResults(results: any[]): any[] {
-  const seen = new Set();
-  return results.filter(r => {
-    if (!r || !r.place_id) return false;
-    if (seen.has(r.place_id)) {
-      return false;
+    
+    // 3. Try a broader search if we have few results
+    if (results.length < 3) {
+      const broadQuery = searchTerm.split(' ')[0]; // Use first word for broader search
+      const broadUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(broadQuery)}&key=${apiKey}`;
+      const broadRes = await fetch(broadUrl);
+      const broadData = await broadRes.json();
+      if (broadData.results) {
+        results.push(...broadData.results);
+      }
     }
-    seen.add(r.place_id);
-    return true;
-  });
+  } catch (error) {
+    console.error(`Error searching for "${searchTerm}":`, error);
+  }
+  
+  return results;
 }
 
-// Extract business name from domain
-function extractBusinessNameFromDomain(query: string): string {
-  return query
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .replace(/\.(com|org|net|io|co|us|ca|app|ai|dev).*$/, '')
-    .replace(/-/g, ' ');  // Convert hyphens to spaces
+// Deduplicate and format results
+function formatAndDeduplicateResults(results: any[]): any[] {
+  const seen = new Set();
+  const formatted = [];
+  
+  for (const result of results) {
+    if (!result || !result.place_id || seen.has(result.place_id)) continue;
+    
+    seen.add(result.place_id);
+    let photo_url;
+    if (result.photos?.[0]?.photo_reference) {
+      photo_url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${result.photos[0].photo_reference}&key=${GOOGLE_PLACES_API_KEY}`;
+    }
+    
+    formatted.push({
+      name: result.name,
+      formatted_address: result.formatted_address || result.vicinity || "",
+      place_id: result.place_id,
+      photo_url,
+      website: result.website,
+      review_count: result.user_ratings_total || 0,
+    });
+  }
+  
+  return formatted;
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
   
   try {
-    // Get client IP for rate limiting
-    const forwardedFor = req.headers.get("x-forwarded-for") || "unknown";
-    const clientIP = forwardedFor.split(",")[0].trim();
-    
-    // Check if request is from a bot
-    if (isBotRequest(req)) {
-      console.warn("Bot request detected and blocked:", clientIP);
-      return new Response(JSON.stringify({ error: "Access denied" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    
-    // Apply rate limiting
-    if (!limiter.try(clientIP)) {
-      console.warn("Rate limit exceeded for IP:", clientIP);
-      return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
-        status: 429, // Too Many Requests
-        headers: { 
-          ...corsHeaders, 
-          "Content-Type": "application/json",
-          "Retry-After": "60" // Suggest client to retry after 60 seconds
-        },
-      });
+    if (!GOOGLE_PLACES_API_KEY) {
+      throw new Error("GOOGLE_PLACES_API_KEY is not set.");
     }
     
     const { query } = await req.json();
-    console.log("Search query:", query);
-
-    if (!GOOGLE_PLACES_API_KEY) {
-      return new Response(JSON.stringify({ error: "GOOGLE_PLACES_API_KEY is not set." }), {
+    console.log("Original search query:", query);
+    
+    // Process search terms
+    const searchTerms = processSearchTerm(query);
+    console.log("Processed search terms:", searchTerms);
+    
+    // Collect all results
+    let allResults: any[] = [];
+    for (const term of searchTerms) {
+      const results = await searchPlaces(term, GOOGLE_PLACES_API_KEY);
+      allResults.push(...results);
+      console.log(`Found ${results.length} results for term "${term}"`);
+    }
+    
+    // Format and deduplicate results
+    const finalResults = formatAndDeduplicateResults(allResults);
+    console.log("Total unique results:", finalResults.length);
+    
+    return new Response(JSON.stringify(finalResults), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    
+  } catch (err: any) {
+    console.error("Search error:", err);
+    return new Response(
+      JSON.stringify({ error: err?.message || "Internal server error" }),
+      {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let allResults: any[] = [];
-    
-    // 1. First try text search
-    const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
-    
-    let res = await fetch(textSearchUrl);
-    let data = await res.json();
-    console.log("Text search results:", data.results?.length || 0);
-    
-    if (Array.isArray(data.results)) {
-      allResults.push(...data.results);
-    }
-    
-    // 2. If the search looks like it might be a website or business name
-    const isWebsite = query.includes('.') && !query.includes(' ');
-    let businessName = isWebsite ? extractBusinessNameFromDomain(query) : query;
-    
-    // Try direct findPlaceFromText for business name with more fields
-    if (businessName && businessName.length > 1) {
-      try {
-        const findPlaceUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(businessName)}&inputtype=textquery&fields=place_id,name,formatted_address,photos,geometry,website,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
-        
-        const findRes = await fetch(findPlaceUrl);
-        const findData = await findRes.json();
-        console.log("Find place results for", businessName, ":", findData.candidates?.length || 0);
-        
-        if (findData.candidates && findData.candidates.length > 0) {
-          // For each candidate, get full details
-          for (const candidate of findData.candidates.slice(0, 3)) { // Limit to first 3 for performance
-            try {
-              const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${candidate.place_id}&fields=place_id,name,formatted_address,photos,website,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
-              const detailsRes = await fetch(detailsUrl);
-              const detailsData = await detailsRes.json();
-              
-              if (detailsData.result) {
-                allResults.push(detailsData.result);
-              }
-            } catch (err) {
-              console.error("Error fetching place details:", err);
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error in findPlaceFromText:", err);
       }
-    }
-    
-    // 3. Direct query for specific businesses like AgentFire
-    if ((query.toLowerCase().includes("agentfire") || businessName.toLowerCase().includes("agentfire")) && 
-        !allResults.some(r => r.name?.toLowerCase().includes("agentfire"))) {
-      try {
-        const specificSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent("AgentFire web development")}&key=${GOOGLE_PLACES_API_KEY}`;
-        const specificRes = await fetch(specificSearchUrl);
-        const specificData = await specificRes.json();
-        
-        if (Array.isArray(specificData.results)) {
-          console.log("Found specific AgentFire results:", specificData.results.length);
-          allResults.push(...specificData.results);
-        }
-      } catch (err) {
-        console.error("Error in specific search:", err);
-      }
-    }
-    
-    // 4. If still not enough results, try a broader search
-    if (allResults.length < 3) {
-      try {
-        const broadSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(businessName + " business")}&key=${GOOGLE_PLACES_API_KEY}`;
-        
-        const broadRes = await fetch(broadSearchUrl);
-        const broadData = await broadRes.json();
-        console.log("Broad search results:", broadData.results?.length || 0);
-        
-        if (Array.isArray(broadData.results)) {
-          allResults.push(...broadData.results);
-        }
-      } catch (err) {
-        console.error("Error in broad search:", err);
-      }
-    }
-    
-    // Deduplicate results
-    allResults = deduplicateResults(allResults);
-    console.log("Total unique results after merging:", allResults.length);
-    
-    if (allResults.length === 0) {
-      console.log("No results found for query:", query);
-      return new Response(JSON.stringify([]), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Format results
-    const formattedResults = await Promise.all(
-      allResults.map(async (r: any) => {
-        let photo_url: string | undefined;
-        if (r.photos?.[0]?.photo_reference) {
-          photo_url =
-            `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${r.photos[0].photo_reference}&key=${GOOGLE_PLACES_API_KEY}`;
-        }
-
-        return {
-          name: r.name,
-          formatted_address: r.formatted_address || r.vicinity || "",
-          place_id: r.place_id,
-          photo_url,
-          website: r.website,
-          review_count: r.user_ratings_total || 0,
-        };
-      })
     );
-
-    return new Response(JSON.stringify(formattedResults), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (err: any) {
-    console.error("google-places-search error:", err);
-    return new Response(JSON.stringify({ error: err?.message || "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   }
 });
