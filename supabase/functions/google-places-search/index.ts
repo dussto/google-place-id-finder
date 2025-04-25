@@ -83,6 +83,18 @@ function isBotRequest(req: Request): boolean {
   return false;
 }
 
+// Function to deduplicate results based on place_id
+function deduplicateResults(results: any[]): any[] {
+  const seen = new Set();
+  return results.filter(r => {
+    if (seen.has(r.place_id)) {
+      return false;
+    }
+    seen.add(r.place_id);
+    return true;
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -124,23 +136,72 @@ serve(async (req) => {
       });
     }
 
-    // 1. Fetch place results
-    const baseUrl = "https://maps.googleapis.com/maps/api/place/textsearch/json";
-    const url = `${baseUrl}?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
-
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (!Array.isArray(data.results)) {
-      return new Response(JSON.stringify({ error: data.error_message || "No results" }), {
-        status: 400,
+    let allResults: any[] = [];
+    
+    // 1. First try text search
+    const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
+    
+    let res = await fetch(textSearchUrl);
+    let data = await res.json();
+    
+    if (Array.isArray(data.results)) {
+      allResults.push(...data.results);
+    }
+    
+    // 2. If the search looks like it might be for a website, try finding by name
+    if (query.includes('.com') || query.includes('.org') || query.includes('.net') || query.includes('www.')) {
+      // Extract potential business name from domain
+      let businessName = query
+        .replace(/^https?:\/\//, '')
+        .replace(/^www\./, '')
+        .split('.')[0];
+        
+      // Try a second search with just the business name
+      if (businessName && businessName.length > 3) {
+        const nameSearchUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(businessName)}&inputtype=textquery&fields=place_id,name,formatted_address,photos,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
+        
+        const nameRes = await fetch(nameSearchUrl);
+        const nameData = await nameRes.json();
+        
+        if (nameData.candidates && nameData.candidates.length > 0) {
+          // For each candidate, get full details
+          for (const candidate of nameData.candidates) {
+            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${candidate.place_id}&fields=place_id,name,formatted_address,photos,user_ratings_total&key=${GOOGLE_PLACES_API_KEY}`;
+            const detailsRes = await fetch(detailsUrl);
+            const detailsData = await detailsRes.json();
+            
+            if (detailsData.result) {
+              allResults.push(detailsData.result);
+            }
+          }
+        }
+      }
+    }
+    
+    // 3. If still not enough results, try a broader search
+    if (allResults.length < 3 && !query.includes('.')) {
+      const broadSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + " business")}&key=${GOOGLE_PLACES_API_KEY}`;
+      
+      const broadRes = await fetch(broadSearchUrl);
+      const broadData = await broadRes.json();
+      
+      if (Array.isArray(broadData.results)) {
+        allResults.push(...broadData.results);
+      }
+    }
+    
+    // Deduplicate results
+    allResults = deduplicateResults(allResults);
+    
+    if (allResults.length === 0) {
+      return new Response(JSON.stringify([]), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // 2. For each result, build the info (including photo_url and review_count)
-    const out = await Promise.all(
-      data.results.map(async (r: any) => {
+    // Format results
+    const formattedResults = await Promise.all(
+      allResults.map(async (r: any) => {
         let photo_url: string | undefined;
         if (r.photos?.[0]?.photo_reference) {
           photo_url =
@@ -149,7 +210,7 @@ serve(async (req) => {
 
         return {
           name: r.name,
-          formatted_address: r.formatted_address,
+          formatted_address: r.formatted_address || r.vicinity || "",
           place_id: r.place_id,
           photo_url,
           review_count: r.user_ratings_total || 0,
@@ -157,7 +218,7 @@ serve(async (req) => {
       })
     );
 
-    return new Response(JSON.stringify(out), {
+    return new Response(JSON.stringify(formattedResults), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {

@@ -15,6 +15,7 @@ const PlaceSearch: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchPerformed, setSearchPerformed] = useState(false);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +31,7 @@ const PlaceSearch: React.FC = () => {
     setAllResults(null);
     setError(null);
     setCurrentPage(1);
+    setSearchPerformed(true);
 
     try {
       const res = await findPlaces({ query });
@@ -37,7 +39,7 @@ const PlaceSearch: React.FC = () => {
       if (res.length === 0)
         toast({
           title: "No results found",
-          description: "Try refining your search.",
+          description: "Try refining your search or using a different keyword.",
         });
     } catch (err: any) {
       console.error("Search error:", err);
@@ -65,7 +67,23 @@ const PlaceSearch: React.FC = () => {
 
       <SearchError error={error || ""} />
 
-      {allResults && (
+      {searchPerformed && allResults && allResults.length === 0 && !loading && !error && (
+        <div className="mt-8 text-center p-8 bg-gray-50 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
+          <p className="text-gray-600 mb-4">We couldn't find any places matching "{query}"</p>
+          <div className="text-sm text-gray-500">
+            <p>Suggestions:</p>
+            <ul className="list-disc list-inside mt-2 text-left max-w-md mx-auto">
+              <li>Check the spelling of your search term</li>
+              <li>Try a more general search term</li>
+              <li>Try searching for the business name without the domain (.com, .org, etc)</li>
+              <li>Include location information if searching for a physical business</li>
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {allResults && allResults.length > 0 && (
         <SearchResults
           allResults={allResults}
           currentPage={currentPage}
