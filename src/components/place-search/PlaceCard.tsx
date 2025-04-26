@@ -1,11 +1,9 @@
 
 import React from "react";
 import { Card } from "@/components/ui/card";
-import { MapPin, Globe, Copy, MessageSquare, Link } from "lucide-react";
+import { MapPin, Globe, Copy, MessageSquare, Link, ImageOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { EnhancedPlaceResult } from "@/lib/googlePlaces";
-
-const PLACEHOLDER = "https://images.unsplash.com/photo-1721322800607-8c38375eef04?auto=format&fit=cover&w=400&q=80";
 
 interface PlaceCardProps {
   result: EnhancedPlaceResult;
@@ -26,14 +24,17 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({ result }) => {
   return (
     <Card className="flex flex-row items-stretch p-0 border border-gray-100">
       <div className="w-[30%] min-w-0 bg-[#F8FAFC] flex items-center justify-center">
-        <img
-          src={result.photo_url || PLACEHOLDER}
-          alt={result.name}
-          className="object-cover w-full h-full aspect-video"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = PLACEHOLDER;
-          }}
-        />
+        {result.photo_url ? (
+          <img
+            src={result.photo_url}
+            alt={result.name}
+            className="object-cover w-full h-full aspect-video"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+            <ImageOff className="w-8 h-8 text-gray-400" />
+          </div>
+        )}
       </div>
       <div className="w-[70%] flex flex-col gap-3 p-6 bg-white">
         <div className="font-semibold text-xl flex items-center gap-2 text-[#0F172A]">
