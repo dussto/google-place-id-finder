@@ -24,13 +24,13 @@ export const SearchForm: React.FC<SearchFormProps> = ({
         placeholder="Search for a place (e.g., Starbucks, New York)"
         value={query}
         onChange={(e) => onQueryChange(e.target.value)}
-        className="flex-1 border-[#E2E8F0] text-[#0F172A]"
+        className="flex-1 border-[#E2E8F0] text-[#0F172A] h-11" // Increased height to match button
       />
       <button
         type="submit"
         disabled={loading}
         className={cn(
-          "px-6 py-2.5 font-medium rounded-lg",
+          "px-6 py-2.5 font-medium rounded-lg h-11", // Fixed height
           "bg-[#0EA5E9] text-white hover:bg-[#0284C7] transition-colors",
           "disabled:opacity-60 disabled:cursor-not-allowed"
         )}

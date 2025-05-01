@@ -22,24 +22,24 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({ result }) => {
   const getGoogleReviewsUrl = (placeId: string) => `https://search.google.com/local/reviews?placeid=${placeId}`;
 
   return (
-    <Card className="flex flex-row items-stretch p-0 border border-gray-100">
-      <div className="w-[30%] min-w-0 bg-[#F8FAFC] flex items-center justify-center">
+    <Card className="flex flex-col sm:flex-row items-stretch p-0 border border-gray-100">
+      <div className="w-full sm:w-[30%] min-w-0 bg-[#F8FAFC] flex items-center justify-center h-48 sm:h-auto">
         {result.photo_url ? (
           <img
             src={result.photo_url}
             alt={result.name}
-            className="object-cover w-full h-full aspect-video"
+            className="object-cover w-full h-full"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gray-100">
-            <ImageOff className="w-8 h-8 text-gray-400" />
+            <ImageOff className="w-12 h-12 text-gray-400" />
           </div>
         )}
       </div>
-      <div className="w-[70%] flex flex-col gap-3 p-6 bg-white">
-        <div className="font-semibold text-xl flex items-center gap-2 text-[#0F172A]">
-          <MapPin className="w-5 h-5 text-[#0EA5E9]" />
-          {result.name}
+      <div className="w-full sm:w-[70%] flex flex-col gap-3 p-4 sm:p-6 bg-white">
+        <div className="font-semibold text-lg sm:text-xl flex flex-wrap items-center gap-2 text-[#0F172A]">
+          <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-[#0EA5E9] shrink-0" />
+          <span className="break-words">{result.name}</span>
           <a
             href={getGoogleMapsUrl(result.place_id)}
             target="_blank"
@@ -58,28 +58,28 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({ result }) => {
           <MessageSquare className="w-4 h-4" />
           {result.review_count ?? 0} reviews
         </a>
-        <div className="text-[#475569]">{result.formatted_address}</div>
+        <div className="text-sm sm:text-base text-[#475569] break-words">{result.formatted_address}</div>
         {result.website && (
-          <div className="flex items-center gap-2 text-[#0EA5E9]">
-            <Globe className="w-4 h-4" />
+          <div className="flex items-center gap-2 text-[#0EA5E9] break-all">
+            <Globe className="w-4 h-4 shrink-0" />
             <a
               href={result.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:underline text-sm"
+              className="hover:underline text-xs sm:text-sm"
             >
               {result.website}
             </a>
           </div>
         )}
         <div className="flex items-center gap-2 mt-2 bg-[#F8FAFC] p-3 rounded-lg">
-          <div className="flex-1">
+          <div className="flex-1 overflow-hidden">
             <div className="text-xs text-[#64748B] font-medium mb-1">Place ID</div>
-            <div className="font-mono text-sm text-[#0F172A]">{result.place_id}</div>
+            <div className="font-mono text-xs sm:text-sm text-[#0F172A] break-all">{result.place_id}</div>
           </div>
           <button
             onClick={() => copyToClipboard(result.place_id)}
-            className="p-2 hover:bg-white rounded-md transition-colors"
+            className="p-2 hover:bg-white rounded-md transition-colors shrink-0"
             title="Copy Place ID"
           >
             <Copy className="w-4 h-4 text-[#64748B]" />
