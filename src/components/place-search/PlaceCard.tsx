@@ -22,16 +22,16 @@ export const PlaceCard: React.FC<PlaceCardProps> = ({ result }) => {
   const getGoogleReviewsUrl = (placeId: string) => `https://search.google.com/local/reviews?placeid=${placeId}`;
 
   return (
-    <Card className="flex flex-col sm:flex-row items-stretch p-0 border border-gray-100">
-      <div className="w-full sm:w-[30%] min-w-0 bg-[#F8FAFC] flex items-center justify-center h-48 sm:h-auto">
+    <Card className="flex flex-col sm:flex-row items-stretch p-0 border border-gray-100 overflow-hidden">
+      <div className="w-full sm:w-[30%] min-w-0 bg-[#F8FAFC] flex items-center justify-center h-48 sm:h-auto p-[3px]">
         {result.photo_url ? (
           <img
             src={result.photo_url}
             alt={result.name}
-            className="object-cover w-full h-full"
+            className="object-cover w-full h-full rounded-lg"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+          <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
             <ImageOff className="w-12 h-12 text-gray-400" />
           </div>
         )}
