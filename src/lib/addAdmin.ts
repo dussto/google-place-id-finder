@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 export const addNewAdmin = async () => {
   try {
     // First fix the is_admin function's search path
-    const { error: functionError } = await supabase.rpc('fix_is_admin_function');
+    // Using type assertion to overcome the TypeScript error
+    const { error: functionError } = await supabase.rpc('fix_is_admin_function' as any);
     
     if (functionError) {
       console.error("Error fixing is_admin function:", functionError);
