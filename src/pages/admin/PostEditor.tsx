@@ -74,12 +74,23 @@ export default function PostEditor() {
 
       if (error) throw error;
       
-      // Format date for input field
+      // Format date for input field and ensure status is the correct type
       const formattedData = {
-        ...data,
+        ...formData, // Start with the current formData to ensure proper types
+        title: data.title || "",
+        slug: data.slug || "",
+        content: data.content || "",
+        // Ensure status is either "draft" or "published"
+        status: (data.status === "published" ? "published" : "draft") as "draft" | "published",
+        featured_image_url: data.featured_image_url || "",
         publish_date: data.publish_date ? 
           new Date(data.publish_date).toISOString().slice(0, 16) : 
-          ""
+          "",
+        seo_title: data.seo_title || "",
+        seo_description: data.seo_description || "",
+        seo_keywords: data.seo_keywords || "",
+        seo_canonical_url: data.seo_canonical_url || "",
+        seo_og_image_url: data.seo_og_image_url || "",
       };
       
       setFormData(formattedData);

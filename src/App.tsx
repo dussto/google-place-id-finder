@@ -1,4 +1,5 @@
 
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,57 +14,65 @@ import PostEditor from "./pages/admin/PostEditor";
 import BlogIndex from "./pages/BlogIndex";
 import BlogPost from "./pages/BlogPost";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { addNewAdmin } from "./lib/addAdmin";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/login" element={<Login />} />
-            
-            {/* Blog routes */}
-            <Route path="/blog" element={<BlogIndex />} />
-            <Route path="/blog/:id" element={<BlogPost />} />
-            
-            {/* Admin routes */}
-            <Route 
-              path="/admin/dashboard" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin/posts/:id" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <PostEditor />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/admin/posts/new" 
-              element={
-                <ProtectedRoute adminOnly>
-                  <PostEditor />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Add new admin user when the app loads
+    addNewAdmin();
+  }, []);
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              
+              {/* Blog routes */}
+              <Route path="/blog" element={<BlogIndex />} />
+              <Route path="/blog/:id" element={<BlogPost />} />
+              
+              {/* Admin routes */}
+              <Route 
+                path="/admin/dashboard" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/posts/:id" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <PostEditor />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/posts/new" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <PostEditor />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              {/* Catch-all route */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
