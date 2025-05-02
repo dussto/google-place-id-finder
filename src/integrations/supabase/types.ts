@@ -103,6 +103,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      fix_is_admin_function: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
