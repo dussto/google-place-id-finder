@@ -14,11 +14,16 @@ export const addNewAdmin = async () => {
     }
     
     // Check if user already exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser, error: queryError } = await supabase
       .from("users")
       .select("id")
       .eq("email", "dusan@example.com")
       .single();
+    
+    if (queryError && queryError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      console.error("Error checking for existing user:", queryError);
+      return;
+    }
     
     if (existingUser) {
       console.log("Admin user already exists");
