@@ -3,6 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const addNewAdmin = async () => {
   try {
+    // First fix the is_admin function's search path
+    const { error: functionError } = await supabase.rpc('fix_is_admin_function');
+    
+    if (functionError) {
+      console.error("Error fixing is_admin function:", functionError);
+    } else {
+      console.log("is_admin function fixed successfully");
+    }
+    
     // Check if user already exists
     const { data: existingUser } = await supabase
       .from("users")
