@@ -74,14 +74,15 @@ export default function PostEditor() {
 
       if (error) throw error;
       
+      // Ensure status is correctly typed as "draft" or "published"
+      const postStatus = data.status === "published" ? "published" : "draft";
+      
       // Format date for input field and ensure status is the correct type
-      const formattedData = {
-        ...formData, // Start with the current formData to ensure proper types
+      const formattedData: PostFormData = {
         title: data.title || "",
         slug: data.slug || "",
         content: data.content || "",
-        // Ensure status is either "draft" or "published"
-        status: (data.status === "published" ? "published" : "draft") as "draft" | "published",
+        status: postStatus,
         featured_image_url: data.featured_image_url || "",
         publish_date: data.publish_date ? 
           new Date(data.publish_date).toISOString().slice(0, 16) : 
