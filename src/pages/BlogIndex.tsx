@@ -73,9 +73,9 @@ export default function BlogIndex() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {posts.map((post) => (
-            <Card key={post.id} className="overflow-hidden flex flex-col">
+            <Card key={post.id} className="overflow-hidden flex flex-col w-[calc(100%+50px)]">
               {post.featured_image_url && (
-                <Link to={`/blog/${post.id}`} className="block overflow-hidden h-48">
+                <Link to={`/blog/${post.id}`} className="block overflow-hidden h-[250px]">
                   <img
                     src={post.featured_image_url}
                     alt={post.title}
@@ -111,4 +111,4 @@ export default function BlogIndex() {
       )}
     </div>
   );
-}
+};

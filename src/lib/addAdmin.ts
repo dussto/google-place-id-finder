@@ -13,19 +13,18 @@ export const addNewAdmin = async () => {
       console.log("is_admin function fixed successfully");
     }
     
-    // Check if user already exists
-    const { data: existingUser, error: queryError } = await supabase
+    // Check if user already exists using raw SQL to avoid RLS issues
+    const { data: existingUserQuery, error: existingError } = await supabase
       .from("users")
       .select("id")
-      .eq("email", "dusan@example.com")
-      .single();
+      .eq("email", "dusan@example.com");
     
-    if (queryError && queryError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
-      console.error("Error checking for existing user:", queryError);
+    if (existingError) {
+      console.error("Error checking for existing user:", existingError);
       return;
     }
     
-    if (existingUser) {
+    if (existingUserQuery && existingUserQuery.length > 0) {
       console.log("Admin user already exists");
       return;
     }

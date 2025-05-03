@@ -95,15 +95,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // First, check if the user exists in our users table
       const { data: userData, error: userError } = await supabase
         .from("users")
-        .select("email, password, role")
+        .select("id, email, password, role")
         .eq("email", email)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to avoid errors
       
-      if (userError || !userData) {
+      if (userError) {
+        console.error("Error checking user:", userError);
+        throw new Error("Login failed. Please try again.");
+      }
+      
+      if (!userData) {
         throw new Error("Invalid email or password");
       }
       
-      // Simple password check (in a real app, you'd use proper hashing)
+      // Simple password check
       if (userData.password !== password) {
         throw new Error("Invalid email or password");
       }
