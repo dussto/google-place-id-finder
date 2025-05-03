@@ -35,18 +35,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const { data: sessionData } = await supabase.auth.getSession();
         
         if (sessionData?.session) {
+          console.log("Session found:", sessionData.session.user.id);
+          
           // Get the user data from our users table
           const { data: userData, error } = await supabase
             .from("users")
             .select("id, email, role")
             .eq("id", sessionData.session.user.id)
-            .single();
+            .maybeSingle();
           
           if (error) {
+            console.error("Error fetching user data:", error);
             throw error;
           }
 
           if (userData) {
+            console.log("User data found:", userData);
             setUser(userData);
             setIsAdmin(userData.role === "admin");
           }
@@ -63,15 +67,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
+        
         if (event === "SIGNED_IN" && session) {
           // Get user details on sign in
           const { data, error } = await supabase
             .from("users")
             .select("id, email, role")
             .eq("id", session.user.id)
-            .single();
+            .maybeSingle();
           
           if (data) {
+            console.log("User data after sign in:", data);
             setUser(data);
             setIsAdmin(data.role === "admin");
           } else if (error) {
@@ -92,12 +99,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      // First, check if the user exists in our users table
+      console.log("Attempting login for:", email);
+      
+      // First, get the user from our users table
       const { data: userData, error: userError } = await supabase
         .from("users")
         .select("id, email, password, role")
         .eq("email", email)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid errors
+        .maybeSingle();
       
       if (userError) {
         console.error("Error checking user:", userError);
@@ -105,13 +114,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       if (!userData) {
+        console.error("No user found with email:", email);
         throw new Error("Invalid email or password");
       }
       
       // Simple password check
       if (userData.password !== password) {
+        console.error("Password mismatch for:", email);
         throw new Error("Invalid email or password");
       }
+      
+      console.log("User verified, signing in with Supabase auth");
       
       // If validation passes, sign in with Supabase auth
       const { error } = await supabase.auth.signInWithPassword({
@@ -119,12 +132,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         password,
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase auth error:", error);
+        
+        // If the user doesn't exist in auth yet, sign them up
+        if (error.message.includes("Email not confirmed") || 
+            error.message.includes("Invalid login credentials")) {
+          console.log("Attempting to sign up user first");
+          
+          const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+          
+          if (signUpError) {
+            console.error("Sign up error:", signUpError);
+            throw signUpError;
+          }
+          
+          // Try logging in again after signup
+          const { error: retryError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          
+          if (retryError) {
+            console.error("Retry login error:", retryError);
+            throw retryError;
+          }
+        } else {
+          throw error;
+        }
+      }
       
       toast({
         title: "Login successful",
         description: "You have been logged in successfully",
       });
+      
+      // Set user data and redirect
+      setUser({
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+      });
+      
+      setIsAdmin(userData.role === "admin");
       
       // Redirect based on role
       if (userData.role === "admin") {
@@ -133,6 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         navigate("/");
       }
     } catch (error: any) {
+      console.error("Login process error:", error);
       toast({
         title: "Login failed",
         description: error.message,
@@ -148,6 +202,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         title: "Logged out",
         description: "You have been logged out successfully",
       });
+      setUser(null);
+      setIsAdmin(false);
       navigate("/login");
     } catch (error: any) {
       toast({
