@@ -86,17 +86,15 @@ export default function Login() {
                 required
               />
             </div>
+            <Button 
+              className="w-full" 
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Logging in..." : "Login"}
+            </Button>
           </form>
         </CardContent>
-        <CardFooter>
-          <Button 
-            className="w-full" 
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "Logging in..." : "Login"}
-          </Button>
-        </CardFooter>
       </Card>
     </div>
   );

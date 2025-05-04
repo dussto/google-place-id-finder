@@ -4,8 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const addNewAdmin = async () => {
   try {
     // First fix the is_admin function's search path
-    // Using type assertion to overcome the TypeScript error
-    const { error: functionError } = await supabase.rpc('fix_is_admin_function' as any);
+    const { error: functionError } = await supabase.rpc('fix_is_admin_function');
     
     if (functionError) {
       console.error("Error fixing is_admin function:", functionError);
@@ -28,56 +27,54 @@ export const addNewAdmin = async () => {
 // Helper function to create users
 async function createUser(email: string, password: string, role: "admin" | "user") {
   try {
-    // Check if user exists in auth
+    // Check if user exists in auth.users (can't directly query due to permission issues)
     let authUserId: string | undefined;
     
-    try {
-      // Check if user exists
-      // Define the type for the auth user response to fix the TypeScript error
-      type AuthUser = {
-        id: string;
-        email: string;
-        // Add other properties as needed, but at minimum we need id and email
-      };
-      
-      // Use signUp directly since admin.listUsers may require admin privileges
+    // Try to sign in first - if user exists, this will succeed
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    
+    if (!signInError && signInData?.user) {
+      // User exists and credentials are correct
+      console.log(`User ${email} already exists, signed in successfully`);
+      authUserId = signInData.user.id;
+    } else {
+      // If sign in fails, try to create the user
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            role
-          }
+          data: { role }
         }
       });
       
       if (signUpError) {
-        // Check if error indicates user already exists
-        if (signUpError.message.includes("already registered")) {
-          console.log(`User ${email} already exists, trying to sign in...`);
-          
-          // Try to sign in to get the user ID
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-          
-          if (signInError) {
-            console.error(`Error signing in ${email}:`, signInError);
-          } else if (signInData?.user) {
-            console.log(`Found existing user ${email}:`, signInData.user.id);
-            authUserId = signInData.user.id;
-          }
-        } else {
-          console.error(`Error creating auth user ${email}:`, signUpError);
-          return;
-        }
+        console.error(`Error creating auth user ${email}:`, signUpError);
+        return;
       } else if (signUpData?.user) {
         console.log(`Auth user ${email} created:`, signUpData.user.id);
         authUserId = signUpData.user.id;
+        
+        // Since we're in a development environment, let's automatically confirm the email
+        // This won't work in production as it requires admin privileges
+        // But we can attempt it here for testing purposes
+        try {
+          // Try to update user to be confirmed
+          const { error: updateError } = await supabase.functions.invoke('admin-confirm-user', {
+            body: { user_id: authUserId }
+          });
+          
+          if (updateError) {
+            console.error(`Could not auto-confirm email for ${email}:`, updateError);
+          } else {
+            console.log(`Email for ${email} confirmed automatically`);
+          }
+        } catch (confirmError) {
+          console.error(`Error during auto-confirmation for ${email}:`, confirmError);
+        }
       }
-    } catch (error) {
-      console.log(`User ${email} doesn't exist in auth yet`);
     }
 
     if (!authUserId) {
@@ -99,6 +96,15 @@ async function createUser(email: string, password: string, role: "admin" | "user
     
     if (existingUser) {
       console.log(`User ${email} already exists in users table`);
+      // Update the role if user exists but role might be different
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ role })
+        .eq("id", authUserId);
+        
+      if (updateError) {
+        console.error(`Error updating role for user ${email}:`, updateError);
+      }
       return;
     }
     
