@@ -12,121 +12,99 @@ export const addNewAdmin = async () => {
       console.log("is_admin function fixed successfully");
     }
 
-    // Create a regular test user
-    await createUser("test@example.com", "Password123!", "user");
-    console.log("Test user created with email: test@example.com and password: Password123!");
-
-    // Create an admin user
-    await createUser("admin@example.com", "AdminPass123!", "admin");
-    console.log("Admin user created with email: admin@example.com and password: AdminPass123!");
+    // Create test and admin users (update password of admin if needed)
+    await createOrUpdateUser("test@example.com", "Password123!", "user");
+    await createOrUpdateUser("admin@example.com", "AdminPass123!", "admin");
   } catch (err) {
     console.error("Error in addNewAdmin:", err);
   }
 };
 
-// Helper function to create users
-async function createUser(email: string, password: string, role: "admin" | "user") {
+// Helper function to create or update users
+async function createOrUpdateUser(email: string, password: string, role: "admin" | "user") {
   try {
-    // Check if user exists in auth.users (can't directly query due to permission issues)
-    let authUserId: string | undefined;
+    console.log(`Attempting to create or update user: ${email}`);
     
-    // Try to sign in first - if user exists, this will succeed
+    // Check if the user already exists in auth
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password
     });
     
     if (!signInError && signInData?.user) {
-      // User exists and credentials are correct
-      console.log(`User ${email} already exists, signed in successfully`);
-      authUserId = signInData.user.id;
-    } else {
-      // If sign in fails, try to create the user
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: { role }
-        }
-      });
+      console.log(`User ${email} exists, user ID: ${signInData.user.id}`);
       
-      if (signUpError) {
-        console.error(`Error creating auth user ${email}:`, signUpError);
-        return;
-      } else if (signUpData?.user) {
-        console.log(`Auth user ${email} created:`, signUpData.user.id);
-        authUserId = signUpData.user.id;
-        
-        // Since we're in a development environment, let's automatically confirm the email
-        // This won't work in production as it requires admin privileges
-        // But we can attempt it here for testing purposes
-        try {
-          // Try to update user to be confirmed
-          const { error: updateError } = await supabase.functions.invoke('admin-confirm-user', {
-            body: { user_id: authUserId }
-          });
-          
-          if (updateError) {
-            console.error(`Could not auto-confirm email for ${email}:`, updateError);
-          } else {
-            console.log(`Email for ${email} confirmed automatically`);
-          }
-        } catch (confirmError) {
-          console.error(`Error during auto-confirmation for ${email}:`, confirmError);
-        }
-      }
-    }
-
-    if (!authUserId) {
-      console.error(`Failed to get or create auth user ID for ${email}`);
-      return;
-    }
-    
-    // Check if user already exists in our users table
-    const { data: existingUser, error: existingError } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-    
-    if (existingError) {
-      console.error(`Error checking for existing user ${email}:`, existingError);
-      return;
-    }
-    
-    if (existingUser) {
-      console.log(`User ${email} already exists in users table`);
-      // Update the role if user exists but role might be different
+      // Update the user role in the users table
       const { error: updateError } = await supabase
         .from("users")
-        .update({ role })
-        .eq("id", authUserId);
-        
+        .update({ role, password })
+        .eq("email", email);
+      
       if (updateError) {
-        console.error(`Error updating role for user ${email}:`, updateError);
+        console.error(`Error updating user ${email} role:`, updateError);
+      } else {
+        console.log(`Updated ${email} role to ${role}`);
       }
+      
       return;
     }
     
-    // Insert new user with auth user ID
-    const { data: insertData, error: insertError } = await supabase
+    // If sign in fails, create the user
+    console.log(`Creating new user: ${email}`);
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role }
+      }
+    });
+    
+    if (signUpError) {
+      console.error(`Error creating auth user ${email}:`, signUpError);
+      return;
+    }
+    
+    const userId = signUpData?.user?.id;
+    if (!userId) {
+      console.error(`Failed to get user ID for ${email}`);
+      return;
+    }
+    
+    console.log(`Auth user ${email} created with ID: ${userId}`);
+    
+    // Auto-confirm the email
+    try {
+      const { error: confirmError } = await supabase.functions.invoke('admin-confirm-user', {
+        body: { user_id: userId }
+      });
+      
+      if (confirmError) {
+        console.error(`Failed to auto-confirm email for ${email}:`, confirmError);
+      } else {
+        console.log(`Email for ${email} confirmed automatically`);
+      }
+    } catch (confirmError) {
+      console.error(`Error during email confirmation for ${email}:`, confirmError);
+    }
+    
+    // Insert into users table
+    const { error: insertError } = await supabase
       .from("users")
       .insert([
         {
-          id: authUserId,
+          id: userId,
           email,
-          password, // Note: This is just for reference, actual auth uses Supabase Auth
+          password, // Note: Storing password in users table for reference
           role
         }
-      ])
-      .select();
+      ]);
       
     if (insertError) {
-      console.error(`Error creating user ${email}:`, insertError);
+      console.error(`Error adding ${email} to users table:`, insertError);
     } else {
-      console.log(`User ${email} created successfully:`, insertData);
+      console.log(`User ${email} with role ${role} created successfully`);
     }
   } catch (error) {
-    console.error(`Error creating user ${email}:`, error);
+    console.error(`Error in createOrUpdateUser for ${email}:`, error);
   }
 }

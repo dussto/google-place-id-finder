@@ -41,7 +41,7 @@ serve(async (req) => {
 
     // Update the user to be confirmed
     const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
-      email_confirm: true,
+      email_confirmed: true,
       user_metadata: { email_confirmed: true }
     });
 

@@ -103,6 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("Attempting login for:", email);
       
+      // Clear any previous user state
+      setUser(null);
+      
       // First attempt to sign in with Supabase auth
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
