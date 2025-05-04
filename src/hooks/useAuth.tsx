@@ -27,7 +27,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check active session on mount
+    // Set up auth state change listener FIRST
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log("Auth state changed:", event, session?.user?.id);
+        
+        if (event === "SIGNED_IN" && session) {
+          try {
+            // Get user details on sign in
+            const { data, error } = await supabase
+              .from("users")
+              .select("id, email, role")
+              .eq("id", session.user.id)
+              .maybeSingle();
+            
+            if (data) {
+              console.log("User data after sign in:", data);
+              setUser(data);
+              setIsAdmin(data.role === "admin");
+            } else if (error) {
+              console.error("Error fetching user data:", error.message);
+            }
+          } catch (error: any) {
+            console.error("Error in auth state change:", error.message);
+          }
+        } else if (event === "SIGNED_OUT") {
+          setUser(null);
+          setIsAdmin(false);
+        }
+      }
+    );
+
+    // THEN check for existing session
     const getSession = async () => {
       setLoading(true);
       try {
@@ -46,7 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           
           if (error) {
             console.error("Error fetching user data:", error);
-            throw error;
           }
 
           if (userData) {
@@ -64,34 +94,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     getSession();
     
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.id);
-        
-        if (event === "SIGNED_IN" && session) {
-          // Get user details on sign in
-          const { data, error } = await supabase
-            .from("users")
-            .select("id, email, role")
-            .eq("id", session.user.id)
-            .maybeSingle();
-          
-          if (data) {
-            console.log("User data after sign in:", data);
-            setUser(data);
-            setIsAdmin(data.role === "admin");
-          } else if (error) {
-            console.error("Error fetching user data:", error.message);
-          }
-        } else if (event === "SIGNED_OUT") {
-          setUser(null);
-          setIsAdmin(false);
-          navigate("/login");
-        }
-      }
-    );
-
     return () => {
       authListener.subscription.unsubscribe();
     };
@@ -101,89 +103,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       console.log("Attempting login for:", email);
       
-      // First, get the user from our users table
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("id, email, password, role")
-        .eq("email", email)
-        .maybeSingle();
-      
-      if (userError) {
-        console.error("Error checking user:", userError);
-        throw new Error("Login failed. Please try again.");
-      }
-      
-      if (!userData) {
-        console.error("No user found with email:", email);
-        throw new Error("Invalid email or password");
-      }
-      
-      // Simple password check
-      if (userData.password !== password) {
-        console.error("Password mismatch for:", email);
-        throw new Error("Invalid email or password");
-      }
-      
-      console.log("User verified, signing in with Supabase auth");
-      
-      // If validation passes, sign in with Supabase auth
-      const { error } = await supabase.auth.signInWithPassword({
+      // First attempt to sign in with Supabase auth
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
       
-      if (error) {
-        console.error("Supabase auth error:", error);
+      if (signInError) {
+        console.error("Auth error:", signInError);
         
-        // If the user doesn't exist in auth yet, sign them up
-        if (error.message.includes("Email not confirmed") || 
-            error.message.includes("Invalid login credentials")) {
-          console.log("Attempting to sign up user first");
-          
-          const { error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-          });
-          
-          if (signUpError) {
-            console.error("Sign up error:", signUpError);
-            throw signUpError;
-          }
-          
-          // Try logging in again after signup
-          const { error: retryError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          
-          if (retryError) {
-            console.error("Retry login error:", retryError);
-            throw retryError;
-          }
-        } else {
-          throw error;
+        // If we get a specific error about credentials not found, provide better messaging
+        if (signInError.message.includes("Invalid login credentials")) {
+          throw new Error("Invalid email or password");
         }
+        
+        throw signInError;
       }
       
-      toast({
-        title: "Login successful",
-        description: "You have been logged in successfully",
-      });
-      
-      // Set user data and redirect
-      setUser({
-        id: userData.id,
-        email: userData.email,
-        role: userData.role,
-      });
-      
-      setIsAdmin(userData.role === "admin");
-      
-      // Redirect based on role
-      if (userData.role === "admin") {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/");
+      if (signInData.user) {
+        console.log("Auth successful, getting user profile data");
+        
+        // Get user profile data from our database
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("id, email, role")
+          .eq("id", signInData.user.id)
+          .maybeSingle();
+        
+        if (userError) {
+          console.error("Error fetching user data:", userError);
+          throw new Error("Failed to load user profile");
+        }
+        
+        if (!userData) {
+          console.error("No user profile found");
+          throw new Error("User account not found");
+        }
+        
+        // Update local state
+        setUser(userData);
+        setIsAdmin(userData.role === "admin");
+        
+        toast({
+          title: "Login successful",
+          description: "You have been logged in successfully",
+        });
+        
+        // Redirect based on role
+        if (userData.role === "admin") {
+          navigate("/admin/dashboard");
+        } else {
+          navigate("/");
+        }
       }
     } catch (error: any) {
       console.error("Login process error:", error);
@@ -192,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
+      throw error;
     }
   };
 
@@ -211,6 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
+      console.error("Logout error:", error);
     }
   };
 

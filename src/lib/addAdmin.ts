@@ -16,19 +16,36 @@ export const addNewAdmin = async () => {
     const adminEmail = "dusan@example.com";
     const adminPassword = "Lolovanje!13";
     
-    // Check if auth user exists first
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: adminEmail,
-      password: adminPassword
-    });
+    // Check if admin already exists in auth
+    let authUserId: string | undefined;
     
-    if (authError && !authError.message.includes("Email not confirmed")) {
-      console.log("Admin auth user doesn't exist, creating...");
-      
-      // Create the auth user first
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    try {
+      // Try to sign in to check if user exists
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: adminEmail,
         password: adminPassword
+      });
+      
+      if (!signInError && signInData.user) {
+        console.log("Admin user exists in auth:", signInData.user.id);
+        authUserId = signInData.user.id;
+      }
+    } catch (error) {
+      console.log("Admin user doesn't exist in auth yet");
+    }
+
+    // If user doesn't exist in auth, create it
+    if (!authUserId) {
+      console.log("Creating admin auth user...");
+      
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: adminEmail,
+        password: adminPassword,
+        options: {
+          data: {
+            role: "admin"
+          }
+        }
       });
       
       if (signUpError) {
@@ -36,50 +53,51 @@ export const addNewAdmin = async () => {
         return;
       }
       
-      console.log("Admin auth user created:", signUpData.user?.id);
+      if (signUpData.user) {
+        console.log("Admin auth user created:", signUpData.user.id);
+        authUserId = signUpData.user.id;
+      }
+    }
+    
+    if (!authUserId) {
+      console.error("Failed to get or create auth user ID");
+      return;
     }
     
     // Check if user already exists in our users table
-    const { data: existingUserQuery, error: existingError } = await supabase
+    const { data: existingUser, error: existingError } = await supabase
       .from("users")
       .select("id")
-      .eq("email", adminEmail);
+      .eq("email", adminEmail)
+      .maybeSingle();
     
     if (existingError) {
       console.error("Error checking for existing user:", existingError);
       return;
     }
     
-    if (existingUserQuery && existingUserQuery.length > 0) {
+    if (existingUser) {
       console.log("Admin user already exists in users table");
       return;
     }
     
-    // Get auth user ID
-    const { data: authUser } = await supabase.auth.getUser();
-    const userId = authUser?.user?.id;
-    
-    if (!userId) {
-      console.error("Could not get auth user ID");
-      return;
-    }
-    
     // Insert new admin user with auth user ID
-    const { error } = await supabase
+    const { data: insertData, error: insertError } = await supabase
       .from("users")
       .insert([
         {
-          id: userId,
+          id: authUserId,
           email: adminEmail,
           password: adminPassword,
           role: "admin"
         }
-      ]);
+      ])
+      .select();
       
-    if (error) {
-      console.error("Error creating admin user:", error);
+    if (insertError) {
+      console.error("Error creating admin user:", insertError);
     } else {
-      console.log("Admin user created successfully");
+      console.log("Admin user created successfully:", insertData);
     }
   } catch (err) {
     console.error("Error in addNewAdmin:", err);

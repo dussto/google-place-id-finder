@@ -10,8 +10,8 @@ import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("dusan@example.com");
+  const [password, setPassword] = useState("Lolovanje!13");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user, login } = useAuth();
@@ -28,7 +28,9 @@ export default function Login() {
     
     try {
       await login(email, password);
+      // Success is handled by the auth context
     } catch (err: any) {
+      console.error("Login error:", err);
       setError(err.message || "Login failed. Please try again.");
     } finally {
       setIsSubmitting(false);
