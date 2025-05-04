@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function Login() {
-  const [email, setEmail] = useState("dusan@example.com");
-  const [password, setPassword] = useState("Lolovanje!13");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user, login } = useAuth();
@@ -53,12 +53,22 @@ export default function Login() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+          
+          <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Test accounts:</strong><br />
+              Admin: admin@example.com / AdminPass123!<br />
+              User: test@example.com / Password123!
+            </AlertDescription>
+          </Alert>
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input 
                 id="email"
-                placeholder="admin@example.com"
+                placeholder="your@email.com"
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

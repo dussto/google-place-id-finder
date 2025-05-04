@@ -13,54 +13,68 @@ export const addNewAdmin = async () => {
       console.log("is_admin function fixed successfully");
     }
 
-    const adminEmail = "dusan@example.com";
-    const adminPassword = "Lolovanje!13";
-    
-    // Check if admin already exists in auth
+    // Create a regular test user
+    await createUser("test@example.com", "Password123!", "user");
+    console.log("Test user created with email: test@example.com and password: Password123!");
+
+    // Create an admin user
+    await createUser("admin@example.com", "AdminPass123!", "admin");
+    console.log("Admin user created with email: admin@example.com and password: AdminPass123!");
+  } catch (err) {
+    console.error("Error in addNewAdmin:", err);
+  }
+};
+
+// Helper function to create users
+async function createUser(email: string, password: string, role: "admin" | "user") {
+  try {
+    // Check if user exists in auth
     let authUserId: string | undefined;
     
     try {
-      // Try to sign in to check if user exists
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: adminPassword
-      });
+      // Check if user exists
+      const { data: existingUsers, error: userCheckError } = await supabase.auth.admin.listUsers();
       
-      if (!signInError && signInData.user) {
-        console.log("Admin user exists in auth:", signInData.user.id);
-        authUserId = signInData.user.id;
+      if (userCheckError) {
+        console.error("Error checking for existing users:", userCheckError);
+      } else if (existingUsers?.users) {
+        const existingUser = existingUsers.users.find(user => user.email === email);
+        if (existingUser) {
+          console.log(`User ${email} already exists in auth:`, existingUser.id);
+          authUserId = existingUser.id;
+        }
       }
     } catch (error) {
-      console.log("Admin user doesn't exist in auth yet");
+      console.log(`User ${email} doesn't exist in auth yet`);
     }
 
     // If user doesn't exist in auth, create it
     if (!authUserId) {
-      console.log("Creating admin auth user...");
+      console.log(`Creating auth user ${email}...`);
       
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: adminEmail,
-        password: adminPassword,
+        email,
+        password,
         options: {
           data: {
-            role: "admin"
+            role
           }
         }
       });
       
       if (signUpError) {
-        console.error("Error creating admin auth user:", signUpError);
+        console.error(`Error creating auth user ${email}:`, signUpError);
         return;
       }
       
       if (signUpData.user) {
-        console.log("Admin auth user created:", signUpData.user.id);
+        console.log(`Auth user ${email} created:`, signUpData.user.id);
         authUserId = signUpData.user.id;
       }
     }
     
     if (!authUserId) {
-      console.error("Failed to get or create auth user ID");
+      console.error(`Failed to get or create auth user ID for ${email}`);
       return;
     }
     
@@ -68,38 +82,38 @@ export const addNewAdmin = async () => {
     const { data: existingUser, error: existingError } = await supabase
       .from("users")
       .select("id")
-      .eq("email", adminEmail)
+      .eq("email", email)
       .maybeSingle();
     
     if (existingError) {
-      console.error("Error checking for existing user:", existingError);
+      console.error(`Error checking for existing user ${email}:`, existingError);
       return;
     }
     
     if (existingUser) {
-      console.log("Admin user already exists in users table");
+      console.log(`User ${email} already exists in users table`);
       return;
     }
     
-    // Insert new admin user with auth user ID
+    // Insert new user with auth user ID
     const { data: insertData, error: insertError } = await supabase
       .from("users")
       .insert([
         {
           id: authUserId,
-          email: adminEmail,
-          password: adminPassword,
-          role: "admin"
+          email,
+          password, // Note: This is just for reference, actual auth uses Supabase Auth
+          role
         }
       ])
       .select();
       
     if (insertError) {
-      console.error("Error creating admin user:", insertError);
+      console.error(`Error creating user ${email}:`, insertError);
     } else {
-      console.log("Admin user created successfully:", insertData);
+      console.log(`User ${email} created successfully:`, insertData);
     }
-  } catch (err) {
-    console.error("Error in addNewAdmin:", err);
+  } catch (error) {
+    console.error(`Error creating user ${email}:`, error);
   }
-};
+}
