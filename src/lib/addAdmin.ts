@@ -33,12 +33,13 @@ async function createUser(email: string, password: string, role: "admin" | "user
     
     try {
       // Check if user exists
-      const { data: existingUsers, error: userCheckError } = await supabase.auth.admin.listUsers();
+      const { data: authData, error: userCheckError } = await supabase.auth.admin.listUsers();
       
       if (userCheckError) {
         console.error("Error checking for existing users:", userCheckError);
-      } else if (existingUsers?.users) {
-        const existingUser = existingUsers.users.find(user => user.email === email);
+      } else if (authData?.users) {
+        // Properly type the users array to access email property
+        const existingUser = authData.users.find(user => user.email === email);
         if (existingUser) {
           console.log(`User ${email} already exists in auth:`, existingUser.id);
           authUserId = existingUser.id;
