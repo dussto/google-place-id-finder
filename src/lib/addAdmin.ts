@@ -33,13 +33,22 @@ async function createUser(email: string, password: string, role: "admin" | "user
     
     try {
       // Check if user exists
+      // Define the type for the auth user response to fix the TypeScript error
+      type AuthUser = {
+        id: string;
+        email: string;
+        // Add other properties as needed, but at minimum we need id and email
+      };
+      
       const { data: authData, error: userCheckError } = await supabase.auth.admin.listUsers();
       
       if (userCheckError) {
         console.error("Error checking for existing users:", userCheckError);
       } else if (authData?.users) {
-        // Properly type the users array to access email property
-        const existingUser = authData.users.find(user => user.email === email);
+        // Type assertion to fix TypeScript error
+        const users = authData.users as AuthUser[];
+        const existingUser = users.find(user => user.email === email);
+        
         if (existingUser) {
           console.log(`User ${email} already exists in auth:`, existingUser.id);
           authUserId = existingUser.id;
