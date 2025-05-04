@@ -111,50 +111,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (signInError) {
         console.error("Auth error:", signInError);
-        
-        // If we get a specific error about credentials not found, provide better messaging
-        if (signInError.message.includes("Invalid login credentials")) {
-          throw new Error("Invalid email or password");
-        }
-        
-        throw signInError;
+        throw new Error("Invalid email or password");
       }
       
-      if (signInData.user) {
-        console.log("Auth successful, getting user profile data");
+      if (!signInData?.user) {
+        console.error("No user returned from sign in");
+        throw new Error("Login failed. Please try again.");
+      }
+      
+      console.log("Auth successful, getting user profile data");
+      
+      // Get user profile data from our database
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("id, email, role")
+        .eq("id", signInData.user.id)
+        .maybeSingle();
+      
+      if (userError) {
+        console.error("Error fetching user data:", userError);
+        throw new Error("Failed to load user profile");
+      }
+      
+      if (!userData) {
+        console.error("No user profile found");
         
-        // Get user profile data from our database
-        const { data: userData, error: userError } = await supabase
+        // If no user profile exists, attempt to create one
+        console.log("Creating user profile for", signInData.user.id);
+        const { data: insertData, error: insertError } = await supabase
           .from("users")
-          .select("id, email, role")
-          .eq("id", signInData.user.id)
-          .maybeSingle();
-        
-        if (userError) {
-          console.error("Error fetching user data:", userError);
-          throw new Error("Failed to load user profile");
+          .insert([
+            {
+              id: signInData.user.id,
+              email,
+              password: "stored-in-auth-only", // Just a placeholder
+              role: "user" // Default role
+            }
+          ])
+          .select();
+          
+        if (insertError) {
+          console.error("Error creating user profile:", insertError);
+          throw new Error("Failed to create user profile");
         }
         
-        if (!userData) {
-          console.error("No user profile found");
-          throw new Error("User account not found");
+        if (insertData && insertData.length > 0) {
+          setUser(insertData[0] as User);
+          setIsAdmin(insertData[0].role === "admin");
         }
-        
+      } else {
         // Update local state
         setUser(userData);
         setIsAdmin(userData.role === "admin");
-        
-        toast({
-          title: "Login successful",
-          description: "You have been logged in successfully",
-        });
-        
-        // Redirect based on role
-        if (userData.role === "admin") {
-          navigate("/admin/dashboard");
-        } else {
-          navigate("/");
-        }
+      }
+      
+      toast({
+        title: "Login successful",
+        description: "You have been logged in successfully",
+      });
+      
+      // Redirect based on role
+      if (userData?.role === "admin") {
+        navigate("/admin/dashboard");
+      } else {
+        navigate("/");
       }
     } catch (error: any) {
       console.error("Login process error:", error);

@@ -40,28 +40,7 @@ async function createUser(email: string, password: string, role: "admin" | "user
         // Add other properties as needed, but at minimum we need id and email
       };
       
-      const { data: authData, error: userCheckError } = await supabase.auth.admin.listUsers();
-      
-      if (userCheckError) {
-        console.error("Error checking for existing users:", userCheckError);
-      } else if (authData?.users) {
-        // Type assertion to fix TypeScript error
-        const users = authData.users as AuthUser[];
-        const existingUser = users.find(user => user.email === email);
-        
-        if (existingUser) {
-          console.log(`User ${email} already exists in auth:`, existingUser.id);
-          authUserId = existingUser.id;
-        }
-      }
-    } catch (error) {
-      console.log(`User ${email} doesn't exist in auth yet`);
-    }
-
-    // If user doesn't exist in auth, create it
-    if (!authUserId) {
-      console.log(`Creating auth user ${email}...`);
-      
+      // Use signUp directly since admin.listUsers may require admin privileges
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -73,16 +52,34 @@ async function createUser(email: string, password: string, role: "admin" | "user
       });
       
       if (signUpError) {
-        console.error(`Error creating auth user ${email}:`, signUpError);
-        return;
-      }
-      
-      if (signUpData.user) {
+        // Check if error indicates user already exists
+        if (signUpError.message.includes("already registered")) {
+          console.log(`User ${email} already exists, trying to sign in...`);
+          
+          // Try to sign in to get the user ID
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password
+          });
+          
+          if (signInError) {
+            console.error(`Error signing in ${email}:`, signInError);
+          } else if (signInData?.user) {
+            console.log(`Found existing user ${email}:`, signInData.user.id);
+            authUserId = signInData.user.id;
+          }
+        } else {
+          console.error(`Error creating auth user ${email}:`, signUpError);
+          return;
+        }
+      } else if (signUpData?.user) {
         console.log(`Auth user ${email} created:`, signUpData.user.id);
         authUserId = signUpData.user.id;
       }
+    } catch (error) {
+      console.log(`User ${email} doesn't exist in auth yet`);
     }
-    
+
     if (!authUserId) {
       console.error(`Failed to get or create auth user ID for ${email}`);
       return;
