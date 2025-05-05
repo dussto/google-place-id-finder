@@ -33,24 +33,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log("Auth state changed:", event, session?.user?.id);
         
         if (event === "SIGNED_IN" && session) {
-          try {
-            // Get user details on sign in
-            const { data, error } = await supabase
-              .from("users")
-              .select("id, email, role")
-              .eq("id", session.user.id)
-              .maybeSingle();
-            
-            if (data) {
-              console.log("User data after sign in:", data);
-              setUser(data);
-              setIsAdmin(data.role === "admin");
-            } else if (error) {
-              console.error("Error fetching user data:", error.message);
+          // When signed in, get the user data
+          const userId = session.user.id;
+          
+          // First, set the basic user info from auth
+          const tempUser = {
+            id: userId,
+            email: session.user.email || "",
+            role: "user" as "admin" | "user" // Default role, will update from DB
+          };
+          
+          setUser(tempUser);
+          
+          // Then fetch complete user profile from our users table
+          setTimeout(async () => {
+            try {
+              const { data, error } = await supabase
+                .from("users")
+                .select("id, email, role")
+                .eq("id", userId)
+                .maybeSingle();
+              
+              if (error) {
+                console.error("Error fetching user profile after sign in:", error);
+                return;
+              }
+
+              if (data) {
+                console.log("User profile found:", data);
+                setUser(data);
+                setIsAdmin(data.role === "admin");
+              } else {
+                console.log("No user profile found in users table for:", userId);
+              }
+            } catch (err) {
+              console.error("Error in delayed profile fetch:", err);
             }
-          } catch (error: any) {
-            console.error("Error in auth state change:", error.message);
-          }
+          }, 0);
         } else if (event === "SIGNED_OUT") {
           setUser(null);
           setIsAdmin(false);
@@ -83,7 +102,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.log("User data found:", userData);
             setUser(userData);
             setIsAdmin(userData.role === "admin");
+          } else {
+            // If no user profile exists but we have an auth session
+            console.log("User authenticated but no profile found in users table");
+            
+            // Create a basic user object from session data
+            setUser({
+              id: sessionData.session.user.id,
+              email: sessionData.session.user.email || "",
+              role: "user" // Default role
+            });
           }
+        } else {
+          console.log("No session found");
         }
       } catch (error: any) {
         console.error("Error fetching session:", error.message);
@@ -102,6 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     try {
       console.log("Attempting login for:", email);
+      setIsSubmitting(true);
       
       // Clear any previous user state
       setUser(null);
@@ -114,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (signInError) {
         console.error("Auth error:", signInError);
-        throw new Error("Invalid email or password");
+        throw new Error(signInError.message || "Invalid email or password");
       }
       
       if (!signInData?.user) {
@@ -122,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Login failed. Please try again.");
       }
       
-      console.log("Auth successful, getting user profile data");
+      console.log("Auth successful, user logged in:", signInData.user.id);
       
       // Get user profile data from our database
       const { data: userData, error: userError } = await supabase
@@ -133,39 +165,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (userError) {
         console.error("Error fetching user data:", userError);
-        throw new Error("Failed to load user profile");
+        // Not throwing error here as we can continue with auth data
       }
       
-      if (!userData) {
-        console.error("No user profile found");
-        
-        // If no user profile exists, attempt to create one
-        console.log("Creating user profile for", signInData.user.id);
-        const { data: insertData, error: insertError } = await supabase
-          .from("users")
-          .insert([
-            {
-              id: signInData.user.id,
-              email,
-              password: "stored-in-auth-only", // Just a placeholder
-              role: "user" // Default role
-            }
-          ])
-          .select();
-          
-        if (insertError) {
-          console.error("Error creating user profile:", insertError);
-          throw new Error("Failed to create user profile");
-        }
-        
-        if (insertData && insertData.length > 0) {
-          setUser(insertData[0] as User);
-          setIsAdmin(insertData[0].role === "admin");
-        }
-      } else {
-        // Update local state
+      if (userData) {
+        // Update local state with full user profile
         setUser(userData);
         setIsAdmin(userData.role === "admin");
+      } else {
+        // If no profile exists, use basic auth data
+        console.log("No user profile found, using auth data");
+        setUser({
+          id: signInData.user.id,
+          email: signInData.user.email || "",
+          role: "user" // Default role
+        });
       }
       
       toast({
@@ -187,6 +201,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       });
       throw error;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
