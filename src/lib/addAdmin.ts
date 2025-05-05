@@ -27,16 +27,17 @@ async function createOrUpdateUser(email: string, password: string, role: "admin"
     console.log(`Attempting to create or update user: ${email} with role: ${role}`);
     
     // First check if the user exists in Supabase Auth
-    const { data: authUser } = await supabase.auth.admin.listUsers({
+    // Note: We can't use filter directly in listUsers as it's not supported
+    const { data: authUserList } = await supabase.auth.admin.listUsers({
       page: 1,
-      perPage: 1,
-      filter: { email }
+      perPage: 100
     }).catch(e => {
       console.log("Error checking auth users - this is expected in development:", e);
       return { data: null };
     });
     
-    const userExists = authUser?.users?.some(u => u.email === email);
+    // Check if user exists by manually filtering the results
+    const userExists = authUserList?.users?.some(u => u.email === email);
     
     if (userExists) {
       console.log(`User ${email} exists in Auth system, attempting to update...`);

@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Added missing state
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -208,6 +209,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      setIsSubmitting(true);
       await supabase.auth.signOut();
       toast({
         title: "Logged out",
@@ -223,6 +225,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       });
       console.error("Logout error:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
