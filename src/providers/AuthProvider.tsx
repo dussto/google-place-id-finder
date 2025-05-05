@@ -10,7 +10,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -118,9 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [navigate]);
 
   const login = async (email: string, password: string) => {
+    let isSubmitting = true;
     try {
       console.log("Attempting login for:", email);
-      setIsSubmitting(true);
       
       // Clear any previous user state
       setUser(null);
@@ -180,6 +179,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         navigate("/");
       }
+      
+      return { success: true };
     } catch (error: any) {
       console.error("Login process error:", error);
       toast({
@@ -189,13 +190,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       throw error;
     } finally {
-      setIsSubmitting(false);
+      isSubmitting = false;
     }
   };
 
   const logout = async () => {
+    let isSubmitting = false;
     try {
-      setIsSubmitting(true);
+      isSubmitting = true;
       await supabase.auth.signOut();
       toast({
         title: "Logged out",
@@ -204,6 +206,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setIsAdmin(false);
       navigate("/login");
+      
+      return { success: true };
     } catch (error: any) {
       toast({
         title: "Logout failed",
@@ -211,8 +215,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       });
       console.error("Logout error:", error);
+      throw error;
     } finally {
-      setIsSubmitting(false);
+      isSubmitting = false;
     }
   };
 
