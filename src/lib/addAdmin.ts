@@ -12,7 +12,7 @@ export const addNewAdmin = async () => {
       console.log("is_admin function fixed successfully");
     }
 
-    // Create test and admin users (update password of admin if needed)
+    // Create test and admin users
     await createOrUpdateUser("test@example.com", "Password123!", "user");
     await createOrUpdateUser("admin@example.com", "AdminPass123!", "admin");
   } catch (err) {
@@ -25,23 +25,29 @@ async function createOrUpdateUser(email: string, password: string, role: "admin"
   try {
     console.log(`Attempting to create or update user: ${email}`);
     
-    // Check if the user already exists in auth
-    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    // Check if user already exists in auth
+    const { data: userData, error: userDataError } = await supabase
+      .from("users")
+      .select("id, email, role")
+      .eq("email", email)
+      .maybeSingle();
     
-    if (!signInError && signInData?.user) {
-      console.log(`User ${email} exists, user ID: ${signInData.user.id}`);
+    if (userDataError) {
+      console.error(`Error checking for existing user ${email}:`, userDataError);
+      return;
+    }
+    
+    if (userData) {
+      console.log(`User ${email} exists, updating role to ${role}`);
       
-      // Update the user role in the users table
+      // Update the existing user's role
       const { error: updateError } = await supabase
         .from("users")
         .update({ role, password })
         .eq("email", email);
       
       if (updateError) {
-        console.error(`Error updating user ${email} role:`, updateError);
+        console.error(`Error updating user ${email}:`, updateError);
       } else {
         console.log(`Updated ${email} role to ${role}`);
       }
@@ -49,7 +55,7 @@ async function createOrUpdateUser(email: string, password: string, role: "admin"
       return;
     }
     
-    // If sign in fails, create the user
+    // If user doesn't exist, create a new one in auth system
     console.log(`Creating new user: ${email}`);
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
