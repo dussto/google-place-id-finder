@@ -1,5 +1,4 @@
 
-import { useNavigate } from "react-router-dom";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useSupabaseAuth } from "@/hooks/useSupabaseAuth";
 import { useLogin } from "@/hooks/useLogin";
