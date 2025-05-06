@@ -2,7 +2,6 @@
 import PlaceSearch from "@/components/PlaceSearch";
 import { AdPlaceholder } from "@/components/AdPlaceholder";
 import Navbar from "@/components/Navbar";
-import { BlogPreview } from "@/components/BlogPreview";
 
 const Index = () => {
   return (
@@ -14,8 +13,6 @@ const Index = () => {
           <div className="mt-8">
             <AdPlaceholder className="h-16 w-full" adSlot="your-ad-slot-id" />
           </div>
-          
-          <BlogPreview />
         </div>
       </div>
     </div>
