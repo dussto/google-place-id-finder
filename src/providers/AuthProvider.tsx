@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -116,7 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [navigate]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<{ success: boolean }> => {
     let isSubmitting = true;
     try {
       console.log("Attempting login for:", email);
@@ -194,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = async () => {
+  const logout = async (): Promise<{ success: boolean }> => {
     let isSubmitting = false;
     try {
       isSubmitting = true;
