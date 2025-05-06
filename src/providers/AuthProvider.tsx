@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,55 +13,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set up auth state change listener FIRST
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log("Auth state changed:", event, session?.user?.id);
+    // Set up auth state listener FIRST
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id);
+      
+      if (event === "SIGNED_IN" && session) {
+        // When signed in, get the user data
+        const userId = session.user.id;
         
-        if (event === "SIGNED_IN" && session) {
-          // When signed in, get the user data
-          const userId = session.user.id;
-          
-          // First, set the basic user info from auth
-          const tempUser = {
-            id: userId,
-            email: session.user.email || "",
-            role: "user" as "admin" | "user" // Default role, will update from DB
-          };
-          
-          setUser(tempUser);
-          
-          // Then fetch complete user profile from our users table
-          setTimeout(async () => {
-            try {
-              const { data, error } = await supabase
-                .from("users")
-                .select("id, email, role")
-                .eq("id", userId)
-                .maybeSingle();
-              
-              if (error) {
-                console.error("Error fetching user profile after sign in:", error);
-                return;
-              }
-
-              if (data) {
-                console.log("User profile found:", data);
-                setUser(data);
-                setIsAdmin(data.role === "admin");
-              } else {
-                console.log("No user profile found in users table for:", userId);
-              }
-            } catch (err) {
-              console.error("Error in delayed profile fetch:", err);
+        // First, set the basic user info from auth
+        const tempUser = {
+          id: userId,
+          email: session.user.email || "",
+          role: "user" as "admin" | "user" // Default role, will update from DB
+        };
+        
+        setUser(tempUser);
+        
+        // Then fetch complete user profile from our users table
+        setTimeout(async () => {
+          try {
+            const { data, error } = await supabase
+              .from("users")
+              .select("id, email, role")
+              .eq("id", userId)
+              .maybeSingle();
+            
+            if (error) {
+              console.error("Error fetching user profile after sign in:", error);
+              return;
             }
-          }, 0);
-        } else if (event === "SIGNED_OUT") {
-          setUser(null);
-          setIsAdmin(false);
-        }
+
+            if (data) {
+              console.log("User profile found:", data);
+              setUser(data);
+              setIsAdmin(data.role === "admin");
+            } else {
+              console.log("No user profile found in users table for:", userId);
+            }
+          } catch (err) {
+            console.error("Error in delayed profile fetch:", err);
+          }
+        }, 0);
+      } else if (event === "SIGNED_OUT") {
+        setUser(null);
+        setIsAdmin(false);
       }
-    );
+    });
 
     // THEN check for existing session
     const getSession = async () => {
@@ -116,14 +115,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [navigate]);
 
   const login = async (email: string, password: string): Promise<{ success: boolean }> => {
-    let isSubmitting = true;
     try {
       console.log("Attempting login for:", email);
       
       // Clear any previous user state
       setUser(null);
       
-      // First attempt to sign in with Supabase auth
+      // Attempt to sign in with Supabase auth
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -131,12 +129,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (signInError) {
         console.error("Auth error:", signInError);
-        throw new Error(signInError.message || "Invalid email or password");
+        toast({
+          title: "Login failed",
+          description: signInError.message || "Invalid email or password",
+          variant: "destructive",
+        });
+        return { success: false };
       }
       
       if (!signInData?.user) {
         console.error("No user returned from sign in");
-        throw new Error("Login failed. Please try again.");
+        toast({
+          title: "Login failed",
+          description: "Login failed. Please try again.",
+          variant: "destructive",
+        });
+        return { success: false };
       }
       
       console.log("Auth successful, user logged in:", signInData.user.id);
@@ -187,16 +195,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         description: error.message,
         variant: "destructive",
       });
-      throw error;
-    } finally {
-      isSubmitting = false;
+      return { success: false };
     }
   };
 
   const logout = async (): Promise<{ success: boolean }> => {
-    let isSubmitting = false;
     try {
-      isSubmitting = true;
       await supabase.auth.signOut();
       toast({
         title: "Logged out",
@@ -214,9 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive",
       });
       console.error("Logout error:", error);
-      throw error;
-    } finally {
-      isSubmitting = false;
+      return { success: false };
     }
   };
 

@@ -27,8 +27,11 @@ export default function Login() {
     setError(null);
     
     try {
-      await login(email, password);
-      // Success is handled by the auth context
+      const { success } = await login(email, password);
+      if (!success) {
+        setError("Login failed. Please check your credentials and try again.");
+      }
+      // Success is handled by the auth context (redirect will happen automatically)
     } catch (err: any) {
       console.error("Login error:", err);
       setError(err.message || "Login failed. Please try again.");
